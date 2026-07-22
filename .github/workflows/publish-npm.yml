@@ -115,8 +115,10 @@ jobs:
             printf 'npm archive was not created\n' >&2
             exit 1
           fi
-          tar -tzf "$package_archive" | grep -qx 'package/LICENSE'
-          tar -tzf "$package_archive" | grep -qx 'package/template/LICENSE'
+          archive_contents="$RUNNER_TEMP/create-admin-app-archive-contents.txt"
+          tar -tzf "$package_archive" > "$archive_contents"
+          grep -qx 'package/LICENSE' "$archive_contents"
+          grep -qx 'package/template/LICENSE' "$archive_contents"
           printf 'path=%s\n' "$GITHUB_WORKSPACE/$package_archive" >> "$GITHUB_OUTPUT"
       - name: Upload npm archive
         uses: actions/upload-artifact@v7
