@@ -1,4 +1,4 @@
-import { runCommand } from "./process.js";
+import { runCommand } from "../../lib/process.js";
 
 export interface GitHubOwner {
 	login: string;

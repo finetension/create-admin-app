@@ -36,7 +36,7 @@
 		"generator:prepare": "pnpm --filter @finetension/create-admin-app prepare:template",
 		"generator:build": "pnpm --filter @finetension/create-admin-app build",
 		"generator:test": "pnpm --filter @finetension/create-admin-app test",
-		"generator:check": "pnpm run generator:build && pnpm run generator:test",
+		"generator:check": "pnpm run generator:prepare && pnpm run generator:build && pnpm run generator:test",
 		"create": "pnpm run generator:prepare && pnpm run generator:build && node ./packages/create-admin-app/dist/index.js",
 		"check": "pnpm run types:check && pnpm run type-check && biome check . && pnpm run lint:eslint && pnpm run lint:fsd && pnpm run test && pnpm run build && pnpm run generator:check"
 	},

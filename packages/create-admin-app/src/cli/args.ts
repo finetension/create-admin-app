@@ -1,17 +1,4 @@
-export interface CliOptions {
-	directory?: string;
-	name?: string;
-	emails?: string;
-	domain?: string;
-	subdomain?: string;
-	yes: boolean;
-	skipInstall: boolean;
-	github?: boolean;
-	cloudflare?: boolean;
-	public: boolean;
-	deploy: boolean;
-	help: boolean;
-}
+import type { CreateOptions } from "../core/context.js";
 
 const valueFlags: Record<string, "name" | "emails" | "domain" | "subdomain"> = {
 	"--name": "name",
@@ -47,8 +34,8 @@ const booleanFlags: Record<
 	"-h": ["help", true],
 };
 
-export function parseArgs(argv: string[]): CliOptions {
-	const options: CliOptions = {
+export function parseArgs(argv: string[]): CreateOptions {
+	const options: CreateOptions = {
 		yes: false,
 		skipInstall: false,
 		public: false,

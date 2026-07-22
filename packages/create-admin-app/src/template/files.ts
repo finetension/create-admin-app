@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 
 const templateRoot = resolve(
 	dirname(fileURLToPath(import.meta.url)),
-	"../template",
+	"../../template",
 );
 
 export async function ensureDestination(path: string): Promise<void> {
@@ -38,16 +38,19 @@ export async function copyTemplate(destination: string): Promise<void> {
 	);
 }
 
-export async function setGeneratedPackageName(
+export async function customizeTemplate(
 	destination: string,
 	packageName: string,
 	displayName: string,
 ): Promise<void> {
-	const path = resolve(destination, "package.json");
-	const packageJson = JSON.parse(await readFile(path, "utf8"));
+	const packageJsonPath = resolve(destination, "package.json");
+	const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8"));
 	packageJson.name = packageName;
 	packageJson.private = true;
-	await writeFile(path, `${JSON.stringify(packageJson, null, "\t")}\n`);
+	await writeFile(
+		packageJsonPath,
+		`${JSON.stringify(packageJson, null, "\t")}\n`,
+	);
 
 	const readmePath = resolve(destination, "README.md");
 	const readme = (await readFile(readmePath, "utf8"))
