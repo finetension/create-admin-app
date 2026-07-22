@@ -152,7 +152,6 @@ jobs:
           git push origin HEAD:main "$RELEASE_TAG"
       - name: Publish to npm
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           PACKAGE_ARCHIVE: ${{ steps.archive.outputs.path }}
         run: npm publish "$PACKAGE_ARCHIVE" --access public
       - name: Create GitHub release
