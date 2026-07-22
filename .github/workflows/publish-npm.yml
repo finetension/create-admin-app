@@ -1,0 +1,166 @@
+name: Publish npm package
+
+on:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Version change to publish
+        required: true
+        default: initial
+        type: choice
+        options:
+          - initial
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: npm-release-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: npm
+    env:
+      PACKAGE_NAME: '@finetension/create-admin-app'
+      PACKAGE_DIRECTORY: packages/create-admin-app
+      RELEASE_KIND: ${{ inputs.release }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Require the main branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            printf 'npm releases can only run from main. Current ref: %s\n' "$GITHUB_REF" >&2
+            exit 1
+          fi
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - name: Require an OIDC-capable npm CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm_version="$(npm --version)"
+          IFS=. read -r npm_major npm_minor npm_patch <<< "$npm_version"
+          if (( npm_major < 11 || (npm_major == 11 && npm_minor < 5) || (npm_major == 11 && npm_minor == 5 && npm_patch < 1) )); then
+            printf 'npm 11.5.1 or newer is required; found %s\n' "$npm_version" >&2
+            exit 1
+          fi
+      - run: pnpm install --frozen-lockfile
+      - name: Resolve release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$RELEASE_KIND" in
+            initial) ;;
+            patch|minor|major)
+              (
+                cd "$PACKAGE_DIRECTORY"
+                npm version "$RELEASE_KIND" \
+                  --no-git-tag-version \
+                  --ignore-scripts
+              )
+              pnpm install --lockfile-only
+              ;;
+            *)
+              printf 'Unsupported release kind: %s\n' "$RELEASE_KIND" >&2
+              exit 1
+              ;;
+          esac
+          version="$(node -p "require('./$PACKAGE_DIRECTORY/package.json').version")"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            printf 'Package version must be stable semver: %s\n' "$version" >&2
+            exit 1
+          fi
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+          printf 'tag=create-admin-app-v%s\n' "$version" >> "$GITHUB_OUTPUT"
+      - name: Refuse an existing registry version
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          if npm view "$PACKAGE_NAME@$RELEASE_VERSION" version >/dev/null 2>&1; then
+            printf '%s@%s already exists on npm. Published versions are immutable.\n' \
+              "$PACKAGE_NAME" "$RELEASE_VERSION" >&2
+            exit 1
+          fi
+      - name: Verify source and package
+        run: pnpm check
+      - name: Build the exact npm archive
+        id: archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/npm
+          pnpm --filter "$PACKAGE_NAME" pack \
+            --pack-destination "$GITHUB_WORKSPACE/artifacts/npm"
+          package_archive="$(find artifacts/npm -maxdepth 1 -name '*.tgz' -print -quit)"
+          if [[ -z "$package_archive" ]]; then
+            printf 'npm archive was not created\n' >&2
+            exit 1
+          fi
+          tar -tzf "$package_archive" | grep -qx 'package/LICENSE'
+          tar -tzf "$package_archive" | grep -qx 'package/template/LICENSE'
+          printf 'path=%s\n' "$GITHUB_WORKSPACE/$package_archive" >> "$GITHUB_OUTPUT"
+      - name: Upload npm archive
+        uses: actions/upload-artifact@v7
+        with:
+          name: create-admin-app-${{ steps.version.outputs.version }}
+          path: artifacts/npm/*.tgz
+          if-no-files-found: error
+          retention-days: 30
+      - name: Commit and tag the release
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet -- "$PACKAGE_DIRECTORY/package.json" pnpm-lock.yaml; then
+            git add -- "$PACKAGE_DIRECTORY/package.json" pnpm-lock.yaml
+            git commit -m "chore(release): create-admin-app v$RELEASE_VERSION"
+          fi
+          if git rev-parse -q --verify "refs/tags/$RELEASE_TAG" >/dev/null; then
+            tagged_commit="$(git rev-list -n 1 "$RELEASE_TAG")"
+            if [[ "$tagged_commit" != "$(git rev-parse HEAD)" ]]; then
+              printf 'Tag %s already points to another commit\n' "$RELEASE_TAG" >&2
+              exit 1
+            fi
+          else
+            git tag -a "$RELEASE_TAG" -m "Create Admin App v$RELEASE_VERSION"
+          fi
+          git push origin HEAD:main "$RELEASE_TAG"
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          PACKAGE_ARCHIVE: ${{ steps.archive.outputs.path }}
+        run: npm publish "$PACKAGE_ARCHIVE" --access public
+      - name: Create GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: >-
+          gh release create "$RELEASE_TAG"
+          --verify-tag
+          --generate-notes
+          --title "Create Admin App v$RELEASE_VERSION"

@@ -1,0 +1,178 @@
+name: Protected production maintenance
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Destructive production operation
+        required: true
+        type: choice
+        options:
+          - restore
+          - destroy
+      confirmation:
+        description: Exact normalized service name
+        required: true
+        type: string
+      backup_run_id:
+        description: Restore source GitHub Actions run ID
+        required: false
+        type: string
+      backup_artifact:
+        description: Restore source artifact name
+        required: false
+        type: string
+      include_data:
+        description: Also delete the D1 database during destroy
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  maintain:
+    if: github.event.repository.private
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    env:
+      PLATFORM_NAME: ${{ vars.PLATFORM_NAME }}
+      PLATFORM_DOMAIN: ${{ vars.PLATFORM_DOMAIN }}
+      PLATFORM_SUBDOMAIN: ${{ vars.PLATFORM_SUBDOMAIN }}
+      PLATFORM_ALLOWED_EMAILS: ${{ vars.PLATFORM_ALLOWED_EMAILS }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCESS_API_TOKEN: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
+      OPERATION: ${{ inputs.operation }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+      BACKUP_RUN_ID: ${{ inputs.backup_run_id }}
+      BACKUP_ARTIFACT: ${{ inputs.backup_artifact }}
+      INCLUDE_DATA: ${{ inputs.include_data }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Require the production branch
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            printf 'Production maintenance can only run from main. Current ref: %s\n' "$GITHUB_REF" >&2
+            exit 1
+          fi
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run cli:build
+      - name: Create deployment config
+        shell: bash
+        run: |
+          set -euo pipefail
+          for variable in PLATFORM_NAME PLATFORM_ALLOWED_EMAILS; do
+            if [[ -z "${!variable:-}" ]]; then
+              printf 'Missing production environment variable: %s\n' "$variable" >&2
+              exit 1
+            fi
+          done
+          init_args=(
+            --name "$PLATFORM_NAME"
+            --emails "$PLATFORM_ALLOWED_EMAILS"
+            --force
+          )
+          if [[ -n "${PLATFORM_DOMAIN:-}" ]]; then
+            init_args+=(--domain "$PLATFORM_DOMAIN")
+            if [[ -n "${PLATFORM_SUBDOMAIN:-}" ]]; then
+              init_args+=(--subdomain "$PLATFORM_SUBDOMAIN")
+            fi
+          else
+            init_args+=(--workers-dev)
+          fi
+          node ./dist/cli/index.mjs init "${init_args[@]}"
+      - name: Validate maintenance request
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$CONFIRMATION" ]]; then
+            printf 'confirmation is required\n' >&2
+            exit 1
+          fi
+          if [[ "$OPERATION" == "restore" ]]; then
+            if [[ ! "$BACKUP_RUN_ID" =~ ^[0-9]+$ ]]; then
+              printf 'restore requires a numeric backup_run_id\n' >&2
+              exit 1
+            fi
+            if [[ ! "$BACKUP_ARTIFACT" =~ ^[A-Za-z0-9._-]+$ ]]; then
+              printf 'restore requires a backup_artifact containing only letters, numbers, dot, underscore, or dash\n' >&2
+              exit 1
+            fi
+          fi
+      - name: Download restore artifact
+        if: inputs.operation == 'restore'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p restore-input
+          gh run download "$BACKUP_RUN_ID" \
+            --name "$BACKUP_ARTIFACT" \
+            --dir restore-input
+      - name: Select restore SQL
+        if: inputs.operation == 'restore'
+        id: restore
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -d '' sql_files < <(find restore-input -type f -name '*.sql' -print0)
+          if [[ "${#sql_files[@]}" -ne 1 ]]; then
+            printf 'Restore artifact must contain exactly one SQL file; found %s\n' "${#sql_files[@]}" >&2
+            exit 1
+          fi
+          printf 'file=%s\n' "${sql_files[0]}" >> "$GITHUB_OUTPUT"
+      - name: Restore production D1
+        if: inputs.operation == 'restore'
+        env:
+          PLATFORM_ALLOW_REMOTE_DB_MUTATION: "1"
+          RESTORE_FILE: ${{ steps.restore.outputs.file }}
+        run: >-
+          node ./dist/cli/index.mjs db import "$RESTORE_FILE"
+          --remote
+          --confirm "$CONFIRMATION"
+          --backup-output "backups/pre-restore-${GITHUB_RUN_ID}.sql"
+      - name: Back up D1 before destroy
+        if: inputs.operation == 'destroy'
+        run: >-
+          node ./dist/cli/index.mjs db export
+          --remote
+          --if-exists
+          --output "backups/pre-destroy-${GITHUB_RUN_ID}.sql"
+      - name: Destroy production infrastructure
+        if: inputs.operation == 'destroy'
+        shell: bash
+        env:
+          PLATFORM_ALLOW_DESTROY: "1"
+        run: |
+          set -euo pipefail
+          args=(destroy --confirm "$CONFIRMATION")
+          if [[ "$INCLUDE_DATA" == "true" ]]; then
+            args+=(--include-data)
+          fi
+          node ./dist/cli/index.mjs "${args[@]}"
+      - name: Print resulting resource status
+        if: success()
+        run: node ./dist/cli/index.mjs status
+      - name: Upload pre-maintenance D1 backup
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: d1-maintenance-backup-${{ github.run_id }}
+          path: backups/*.sql
+          if-no-files-found: ignore
+          retention-days: 30

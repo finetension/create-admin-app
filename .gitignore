@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.wrangler/
+.playwright-mcp/
+deploy.config.json
+.dev.vars*
+.env*
+coverage/
+backups/
+*.tsbuildinfo
+.DS_Store
+packages/create-admin-app/template/

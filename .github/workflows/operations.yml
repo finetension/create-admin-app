@@ -1,0 +1,137 @@
+name: Safe production operation
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Read-only operation to run
+        required: true
+        default: status
+        type: choice
+        options:
+          - status
+          - export
+          - logs
+      log_duration:
+        description: Seconds to capture Worker logs
+        required: true
+        default: "30"
+        type: choice
+        options:
+          - "30"
+          - "60"
+          - "120"
+      log_status:
+        description: Worker log outcome filter
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - error
+          - ok
+          - canceled
+      log_search:
+        description: Optional console.log search text
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  operate:
+    if: github.event.repository.private
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    env:
+      PLATFORM_NAME: ${{ vars.PLATFORM_NAME }}
+      PLATFORM_DOMAIN: ${{ vars.PLATFORM_DOMAIN }}
+      PLATFORM_SUBDOMAIN: ${{ vars.PLATFORM_SUBDOMAIN }}
+      PLATFORM_ALLOWED_EMAILS: ${{ vars.PLATFORM_ALLOWED_EMAILS }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCESS_API_TOKEN: ${{ secrets.CLOUDFLARE_ACCESS_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run cli:build
+      - name: Create deployment config
+        shell: bash
+        run: |
+          set -euo pipefail
+          init_args=(
+            --name "$PLATFORM_NAME"
+            --emails "$PLATFORM_ALLOWED_EMAILS"
+            --force
+          )
+          if [[ -n "${PLATFORM_DOMAIN:-}" ]]; then
+            init_args+=(--domain "$PLATFORM_DOMAIN")
+            if [[ -n "${PLATFORM_SUBDOMAIN:-}" ]]; then
+              init_args+=(--subdomain "$PLATFORM_SUBDOMAIN")
+            fi
+          else
+            init_args+=(--workers-dev)
+          fi
+          node ./dist/cli/index.mjs init "${init_args[@]}"
+      - name: Inspect status
+        if: inputs.operation == 'status'
+        run: node ./dist/cli/index.mjs status
+      - name: Export D1
+        if: inputs.operation == 'export'
+        run: node ./dist/cli/index.mjs db export --remote
+      - name: Upload D1 export
+        if: inputs.operation == 'export'
+        uses: actions/upload-artifact@v7
+        with:
+          name: d1-export-${{ github.run_id }}
+          path: backups/*.sql
+          if-no-files-found: error
+          retention-days: 30
+      - name: Capture Worker logs
+        if: inputs.operation == 'logs'
+        shell: bash
+        env:
+          LOG_DURATION_SECONDS: ${{ inputs.log_duration }}
+          LOG_SEARCH: ${{ inputs.log_search }}
+          LOG_STATUS: ${{ inputs.log_status }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          args=(logs --format json --sampling-rate 1)
+          case "$LOG_STATUS" in
+            all) ;;
+            ok|error|canceled) args+=(--status "$LOG_STATUS") ;;
+            *)
+              printf 'Unsupported log status: %s\n' "$LOG_STATUS" >&2
+              exit 1
+              ;;
+          esac
+          if [[ -n "$LOG_SEARCH" ]]; then
+            args+=(--search "$LOG_SEARCH")
+          fi
+
+          set +e
+          timeout --signal=INT --kill-after=10s "${LOG_DURATION_SECONDS}s" \
+            node ./dist/cli/index.mjs "${args[@]}" 2>&1 \
+            | tee artifacts/worker-logs.log
+          command_status=${PIPESTATUS[0]}
+          set -e
+
+          if [[ "$command_status" -ne 0 && "$command_status" -ne 124 && "$command_status" -ne 130 ]]; then
+            exit "$command_status"
+          fi
+      - name: Upload Worker log snapshot
+        if: always() && inputs.operation == 'logs'
+        uses: actions/upload-artifact@v7
+        with:
+          name: worker-logs-${{ github.run_id }}
+          path: artifacts/worker-logs.log
+          if-no-files-found: error
+          retention-days: 7

@@ -1,0 +1,54 @@
+{
+	"name": "@finetension/create-admin-app",
+	"version": "0.1.0",
+	"description": "Create a Cloudflare-native internal admin app",
+	"license": "MIT",
+	"keywords": [
+		"cloudflare",
+		"react",
+		"hono",
+		"heroui",
+		"admin",
+		"scaffold"
+	],
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/finetension/create-admin-app.git",
+		"directory": "packages/create-admin-app"
+	},
+	"homepage": "https://github.com/finetension/create-admin-app#readme",
+	"bugs": {
+		"url": "https://github.com/finetension/create-admin-app/issues"
+	},
+	"type": "module",
+	"bin": {
+		"create-admin-app": "./dist/index.js"
+	},
+	"files": [
+		"dist",
+		"template",
+		"README.md"
+	],
+	"engines": {
+		"node": ">=22.13.0"
+	},
+	"scripts": {
+		"prebuild": "node ./scripts/clean.mjs",
+		"build": "tsc -p tsconfig.json",
+		"prepare:template": "node ./scripts/prepare-template.mjs",
+		"test": "vitest run",
+		"prepack": "pnpm run build && pnpm run prepare:template"
+	},
+	"dependencies": {
+		"@clack/prompts": "1.7.0",
+		"@napi-rs/keyring": "1.3.0"
+	},
+	"devDependencies": {
+		"@types/node": "^26.1.1",
+		"typescript": "6.0.2",
+		"vitest": "4.1.10"
+	},
+	"publishConfig": {
+		"access": "public"
+	}
+}
