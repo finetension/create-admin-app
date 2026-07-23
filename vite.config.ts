@@ -61,7 +61,7 @@ function createDevelopmentWranglerConfig(): string {
 		vars: {
 			...baseConfig.vars,
 			APP_NAME: userConfig.name,
-			ACCESS_ALLOWED_EMAILS: JSON.stringify(userConfig.allowedEmails),
+			DEV_ALLOWED_EMAILS: JSON.stringify(userConfig.allowedEmails),
 		},
 	};
 	mkdirSync(dirname(generatedPath), { recursive: true });

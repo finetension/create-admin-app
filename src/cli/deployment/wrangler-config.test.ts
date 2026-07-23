@@ -36,6 +36,13 @@ describe("deployment Wrangler config", () => {
 		expect(
 			resolve(configDirectory, generated.d1_databases[0].migrations_dir),
 		).toBe(resolve(projectPaths.root, "db/migrations"));
+		expect(generated.vars).toEqual({
+			ENVIRONMENT: "production",
+			APP_NAME: "Management",
+			ACCESS_TEAM_DOMAIN: "team.cloudflareaccess.com",
+			ACCESS_AUD: "audience",
+		});
+		expect("DEV_ALLOWED_EMAILS" in generated.vars).toBe(false);
 	});
 
 	it("enables workers.dev without creating a custom-domain route", () => {

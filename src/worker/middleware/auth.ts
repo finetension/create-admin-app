@@ -6,11 +6,23 @@ import type { AppEnv, UserRow } from "../types";
 
 const jwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 
+export interface IdentityBindings {
+	ENVIRONMENT: string;
+	DEV_ALLOWED_EMAILS?: string;
+	ACCESS_TEAM_DOMAIN: string;
+	ACCESS_AUD: string;
+}
+
+export type AccessIdentityVerifier = (
+	request: Request,
+	env: IdentityBindings,
+) => Promise<string>;
+
 function normalizeTeamDomain(value: string): string {
 	return value.replace(/^https?:\/\//, "").replace(/\/$/, "");
 }
 
-function parseAllowedEmails(value: string): string[] {
+export function parseDevelopmentEmails(value: string): string[] {
 	try {
 		const parsed = JSON.parse(value);
 		if (!Array.isArray(parsed)) throw new Error("not an array");
@@ -24,7 +36,7 @@ function parseAllowedEmails(value: string): string[] {
 		throw new AppError(
 			503,
 			"AUTH_NOT_CONFIGURED",
-			"ACCESS_ALLOWED_EMAILS를 JSON 이메일 배열로 설정해야 합니다.",
+			"DEV_ALLOWED_EMAILS를 JSON 이메일 배열로 설정해야 합니다.",
 		);
 	}
 }
@@ -40,9 +52,9 @@ function getJwks(teamDomain: string): ReturnType<typeof createRemoteJWKSet> {
 	return jwks;
 }
 
-async function verifyAccessIdentity(
+export async function verifyAccessIdentity(
 	request: Request,
-	env: Cloudflare.Env,
+	env: IdentityBindings,
 ): Promise<string> {
 	const token = request.headers.get("Cf-Access-Jwt-Assertion");
 	const teamDomain = normalizeTeamDomain(env.ACCESS_TEAM_DOMAIN);
@@ -77,6 +89,37 @@ async function verifyAccessIdentity(
 	return email.toLowerCase();
 }
 
+export async function resolveIdentityEmail(
+	request: Request,
+	env: IdentityBindings,
+	verifyIdentity: AccessIdentityVerifier = verifyAccessIdentity,
+): Promise<string> {
+	if (env.ENVIRONMENT !== "development") {
+		return verifyIdentity(request, env);
+	}
+
+	const allowedEmails = parseDevelopmentEmails(env.DEV_ALLOWED_EMAILS ?? "");
+	const defaultEmail = allowedEmails[0];
+	if (!defaultEmail) {
+		throw new AppError(
+			503,
+			"AUTH_NOT_CONFIGURED",
+			"DEV_ALLOWED_EMAILS에는 최소 한 명의 이메일이 필요합니다.",
+		);
+	}
+	const email = (request.headers.get("X-Dev-User") ?? defaultEmail)
+		.trim()
+		.toLowerCase();
+	if (!allowedEmails.includes(email)) {
+		throw new AppError(
+			403,
+			"USER_NOT_ALLOWED",
+			"로컬 개발 사용자로 설정되지 않은 이메일입니다.",
+		);
+	}
+	return email;
+}
+
 async function resolveUser(
 	db: D1Database,
 	email: string,
@@ -103,32 +146,7 @@ async function resolveUser(
 }
 
 export const authenticate: MiddlewareHandler<AppEnv> = async (c, next) => {
-	let email: string;
-	const allowedEmails = parseAllowedEmails(c.env.ACCESS_ALLOWED_EMAILS);
-	const defaultEmail = allowedEmails[0];
-	if (!defaultEmail) {
-		throw new AppError(
-			503,
-			"AUTH_NOT_CONFIGURED",
-			"ACCESS_ALLOWED_EMAILS에는 최소 한 명의 이메일이 필요합니다.",
-		);
-	}
-	const isDevelopment = c.env.ENVIRONMENT === "development";
-
-	if (isDevelopment) {
-		email = (c.req.header("X-Dev-User") ?? defaultEmail).toLowerCase();
-	} else {
-		email = await verifyAccessIdentity(c.req.raw, c.env);
-	}
-
-	if (!allowedEmails.includes(email)) {
-		throw new AppError(
-			403,
-			"USER_NOT_ALLOWED",
-			"접근이 허용되지 않은 이메일입니다.",
-		);
-	}
-
+	const email = await resolveIdentityEmail(c.req.raw, c.env);
 	const user = await resolveUser(c.env.APP_DB, email);
 	c.set("user", user);
 	await next();

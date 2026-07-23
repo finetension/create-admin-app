@@ -1,7 +1,7 @@
 # Create Admin App PRD
 
 - 상태: 생성 경험 및 기반 범위 확정
-- 최종 수정: 2026-07-22
+- 최종 수정: 2026-07-23
 - 범위: 공개 생성 CLI, 공통 기반과 첫 참조 제품 방향
 
 ## 1. 제품 정의
@@ -47,15 +47,18 @@
 
 - 배포된 호스트는 Cloudflare Access로 보호한다.
 - 기본 로그인 방식은 Cloudflare Access One-time PIN이며 별도 OAuth 앱을 요구하지 않는다.
-- 빌드·배포 단계의 `allowedEmails`가 인가 경계이며 Worker에서도 다시 검사한다.
+- 빌드·배포 단계의 `allowedEmails`로 생성한 Cloudflare Access 정책이 운영 인가의 유일한 기준이다.
+- Worker는 `Cf-Access-Jwt-Assertion`의 서명, issuer와 application audience를 검증하고, 검증된 이메일을 사용자 식별과 audit에만 사용한다. 운영 이메일 정책을 다시 평가하지 않는다.
 - 허용된 모든 이메일은 앱 안에서 같은 기능을 사용할 수 있다.
 - `users` 테이블은 식별 정보만 저장하고, 사용자 ID와 이메일은 audit의 행위자 정보로만 활용한다.
 - 개발 환경에서는 `allowedEmails` 안의 이메일만 가장할 수 있고 개발용 역할 헤더는 두지 않는다.
 
 완료 조건:
 
-- 허용되지 않은 운영 사용자는 `403`을 받는다.
+- 허용되지 않은 운영 사용자는 Access edge에서 거부된다.
+- Worker는 Access assertion이 없거나 서명, issuer 또는 audience가 올바르지 않은 운영 API 요청을 거부한다.
 - 허용된 사용자는 첫 API 접근 시 멱등하게 생성된다.
+- 운영 Worker 환경에는 이메일 allowlist binding을 배포하지 않는다.
 - 공개 계약, UI, 라우트 가드에 역할이나 권한 개념이 없다.
 
 ### 5.2 앱 공통 코어

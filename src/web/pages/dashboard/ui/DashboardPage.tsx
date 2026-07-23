@@ -13,7 +13,7 @@ import {
 const foundations = [
 	{
 		title: "동일 권한 인증",
-		description: "Cloudflare Access와 allowedEmails가 신뢰 팀의 경계입니다.",
+		description: "Cloudflare Access 정책이 신뢰 팀의 접근 경계입니다.",
 		icon: ShieldCheckIcon,
 	},
 	{

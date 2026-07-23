@@ -165,6 +165,16 @@ export async function deleteAccessApplication(
 	});
 }
 
+export function createAccessAllowPolicy(config: DeploymentConfig) {
+	return {
+		name: config.access.policyName,
+		decision: "allow",
+		include: config.access.allowedEmails.map((email) => ({
+			email: { email },
+		})),
+	};
+}
+
 async function ensureOrganization(
 	api: CloudflareApi,
 	config: DeploymentConfig,
@@ -265,13 +275,7 @@ export async function ensureAccess(
 		{
 			schema: policySchema,
 			method: existingPolicy ? "PUT" : "POST",
-			body: {
-				name: config.access.policyName,
-				decision: "allow",
-				include: config.access.allowedEmails.map((email) => ({
-					email: { email },
-				})),
-			},
+			body: createAccessAllowPolicy(config),
 		},
 	);
 

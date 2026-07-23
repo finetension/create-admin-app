@@ -86,4 +86,6 @@ pnpm create @finetension/admin-app my-company
 
 ## 로컬 사용자
 
-개발 환경에서는 `allowedEmails`의 첫 이메일을 기본 사용자로 사용한다. 다른 팀원을 확인할 때는 설정에 포함된 이메일을 `X-Dev-User`로 전달한다. `X-Dev-Role`은 존재하지 않는다.
+운영 인증·인가는 Cloudflare Access가 담당한다. Worker는 Access application의 공개 JWKS로 assertion의 서명, issuer와 audience를 검증하지만 `allowedEmails`를 다시 평가하지 않는다. 검증된 이메일은 앱 사용자 식별과 audit actor로만 사용한다.
+
+개발 환경에는 Access가 없으므로 `allowedEmails`를 `DEV_ALLOWED_EMAILS` binding으로만 주입한다. 목록의 첫 이메일을 기본 사용자로 사용하고, 다른 팀원을 확인할 때는 설정에 포함된 이메일을 `X-Dev-User`로 전달한다. 운영 배포에는 `DEV_ALLOWED_EMAILS`를 포함하지 않으며 `X-Dev-Role`은 존재하지 않는다.

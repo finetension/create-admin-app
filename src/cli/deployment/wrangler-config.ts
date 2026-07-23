@@ -51,7 +51,6 @@ export function createDeploymentWranglerConfig(
 		vars: {
 			ENVIRONMENT: "production",
 			APP_NAME: config.name,
-			ACCESS_ALLOWED_EMAILS: JSON.stringify(config.allowedEmails),
 			ACCESS_TEAM_DOMAIN: access.teamDomain,
 			ACCESS_AUD: access.aud,
 		},

@@ -19,7 +19,7 @@
 	"vars": {
 		"ENVIRONMENT": "development",
 		"APP_NAME": "Management System",
-		"ACCESS_ALLOWED_EMAILS": "[]",
+		"DEV_ALLOWED_EMAILS": "[]",
 		"ACCESS_TEAM_DOMAIN": "",
 		"ACCESS_AUD": ""
 	},

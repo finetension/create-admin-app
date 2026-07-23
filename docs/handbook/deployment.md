@@ -32,6 +32,8 @@ Secrets:
 
 생성 경험은 계정 선택과 Zone 조회를 단순화하기 위해 사용자가 제공한 account-wide Cloudflare API token 하나를 로컬 OS credential store와 GitHub `production` Environment에 등록한다. 저장소 파일에는 token을 기록하지 않는다. token에는 Workers Scripts, D1, Access Apps and Policies와 커스텀 도메인을 선택한 경우 Zone·route 권한이 필요하다. Access 로그인은 별도 OAuth secret이 필요 없는 One-time PIN을 기본으로 하고 `allowedEmails` 정책에 포함된 주소에만 코드를 보낸다. 공통 기반은 R2를 사용하지 않는다.
 
+Cloudflare Access가 운영 인증·인가 게이트웨이다. 배포는 `allowedEmails`를 Access Allow 정책에만 반영하고 Worker에는 이메일 목록을 전달하지 않는다. Worker 런타임에는 assertion 검증에 필요한 Access team domain과 application audience만 전달한다. Worker는 검증된 이메일을 사용자 식별과 audit에 사용한다.
+
 공개 저장소로 변경하면 기존 Actions run, D1 backup/export, Worker log artifact가 읽기 권한을 가진 사용자에게 노출될 수 있다. 이 데이터를 보존하는 다른 private 저장소 또는 비공개 storage를 준비하지 않았다면 운영 저장소를 public으로 변경하지 않는다.
 
 ## 워크플로
