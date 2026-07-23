@@ -36,6 +36,68 @@ describe("Cloudflare API", () => {
 		expect(new Headers(init?.headers).get("authorization")).toBe(
 			"Bearer secret-token",
 		);
+		expect(fetchMock.mock.calls[0]?.[0]).toBe(
+			"https://api.cloudflare.com/client/v4/user/tokens/verify",
+		);
+	});
+
+	it("verifies an account-owned token through its account API", async () => {
+		const fetchMock = stubCloudflareResponse({
+			success: true,
+			result: { status: "active" },
+		});
+
+		await expect(
+			verifyCloudflareToken("cfat_secret-token", "account-id"),
+		).resolves.toBeUndefined();
+		expect(fetchMock.mock.calls[0]?.[0]).toBe(
+			"https://api.cloudflare.com/client/v4/accounts/account-id/tokens/verify",
+		);
+	});
+
+	it("requires an account ID for an account-owned token", async () => {
+		await expect(verifyCloudflareToken("cfat_secret-token")).rejects.toThrow(
+			"계정 ID가 필요합니다",
+		);
+	});
+
+	it("falls back to account verification for a legacy unprefixed token", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						success: false,
+						result: null,
+						errors: [{ message: "Invalid API Token" }],
+					}),
+					{
+						status: 403,
+						headers: { "content-type": "application/json" },
+					},
+				),
+			)
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						success: true,
+						result: { status: "active" },
+					}),
+					{
+						status: 200,
+						headers: { "content-type": "application/json" },
+					},
+				),
+			);
+		vi.stubGlobal("fetch", fetchMock);
+
+		await expect(
+			verifyCloudflareToken("legacy-token", "account-id"),
+		).resolves.toBeUndefined();
+		expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+			"https://api.cloudflare.com/client/v4/user/tokens/verify",
+			"https://api.cloudflare.com/client/v4/accounts/account-id/tokens/verify",
+		]);
 	});
 
 	it("validates account results at runtime", async () => {

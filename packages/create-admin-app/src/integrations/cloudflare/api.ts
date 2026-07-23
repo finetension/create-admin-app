@@ -57,8 +57,42 @@ async function request<T>(
 	return resultSchema.parse(payload.result);
 }
 
-export async function verifyCloudflareToken(token: string): Promise<void> {
-	await request("/user/tokens/verify", token, tokenVerificationSchema);
+export async function verifyCloudflareToken(
+	token: string,
+	accountId?: string,
+): Promise<void> {
+	if (token.startsWith("cfat_") && !accountId) {
+		throw new Error(
+			"계정 소유 Cloudflare token 검증에는 계정 ID가 필요합니다.",
+		);
+	}
+	const verifyUserToken = () =>
+		request("/user/tokens/verify", token, tokenVerificationSchema);
+	const verifyAccountToken = () =>
+		request(
+			`/accounts/${accountId}/tokens/verify`,
+			token,
+			tokenVerificationSchema,
+		);
+
+	if (token.startsWith("cfat_")) {
+		await verifyAccountToken();
+		return;
+	}
+	if (token.startsWith("cfut_") || !accountId) {
+		await verifyUserToken();
+		return;
+	}
+
+	try {
+		await verifyUserToken();
+	} catch (userTokenError) {
+		try {
+			await verifyAccountToken();
+		} catch {
+			throw userTokenError;
+		}
+	}
 }
 
 export async function listCloudflareAccounts(

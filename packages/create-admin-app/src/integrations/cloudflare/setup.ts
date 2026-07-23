@@ -3,6 +3,7 @@ import { answer } from "../../cli/prompts.js";
 import type { CloudflareSetup } from "../../core/context.js";
 import { validateSubdomain } from "../../core/project.js";
 import {
+	type CloudflareAccount,
 	listCloudflareAccounts,
 	listCloudflareZones,
 	verifyCloudflareToken,
@@ -54,11 +55,20 @@ export async function resolveCloudflareSetup({
 
 	const spinner = prompts.spinner();
 	spinner.start("Cloudflare 계정과 도메인을 조회합니다");
-	await verifyCloudflareToken(token);
-	const accounts = await listCloudflareAccounts(token);
-	spinner.stop("Cloudflare token을 확인했습니다");
-	if (accounts.length === 0) {
-		throw new Error("이 token으로 접근할 수 있는 Cloudflare 계정이 없습니다.");
+	let accounts: CloudflareAccount[];
+	try {
+		accounts = await listCloudflareAccounts(token);
+		const firstAccount = accounts[0];
+		if (!firstAccount) {
+			throw new Error(
+				"이 token으로 접근할 수 있는 Cloudflare 계정이 없습니다.",
+			);
+		}
+		await verifyCloudflareToken(token, firstAccount.id);
+		spinner.stop("Cloudflare token을 확인했습니다");
+	} catch (error) {
+		spinner.stop("Cloudflare token을 확인하지 못했습니다");
+		throw error;
 	}
 	let account = accounts[0];
 	if (accounts.length > 1 && interactive) {
