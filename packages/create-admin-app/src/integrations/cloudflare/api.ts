@@ -1,25 +1,50 @@
-interface CloudflareEnvelope<T> {
-	success: boolean;
-	result: T;
-	errors?: Array<{ message?: string }>;
-}
+import { ofetch } from "ofetch";
+import { z } from "zod";
 
-export interface CloudflareAccount {
-	id: string;
-	name: string;
-}
+const cloudflareApiBaseUrl = "https://api.cloudflare.com/client/v4";
 
-export interface CloudflareZone {
-	id: string;
-	name: string;
-	status: string;
-}
+const envelopeSchema = z.object({
+	success: z.boolean(),
+	result: z.unknown(),
+	errors: z
+		.array(
+			z.object({
+				message: z.string().optional(),
+			}),
+		)
+		.optional(),
+});
 
-async function request<T>(path: string, token: string): Promise<T> {
-	const response = await fetch(`https://api.cloudflare.com/client/v4${path}`, {
+const tokenVerificationSchema = z.object({
+	status: z.string(),
+});
+
+const accountSchema = z.object({
+	id: z.string().min(1),
+	name: z.string().min(1),
+});
+
+const zoneSchema = z.object({
+	id: z.string().min(1),
+	name: z.string().min(1),
+	status: z.enum(["initializing", "pending", "active", "moved"]),
+});
+
+export type CloudflareAccount = z.infer<typeof accountSchema>;
+export type CloudflareZone = z.infer<typeof zoneSchema>;
+
+async function request<T>(
+	path: string,
+	token: string,
+	resultSchema: z.ZodType<T>,
+): Promise<T> {
+	const response = await ofetch.raw(`${cloudflareApiBaseUrl}${path}`, {
 		headers: { Authorization: `Bearer ${token}` },
+		ignoreResponseError: true,
+		timeout: 30_000,
 	});
-	const payload = (await response.json()) as CloudflareEnvelope<T>;
+	const payload = envelopeSchema.parse(response._data);
+
 	if (!response.ok || !payload.success) {
 		const message =
 			payload.errors
@@ -28,17 +53,18 @@ async function request<T>(path: string, token: string): Promise<T> {
 				.join("; ") || `HTTP ${response.status}`;
 		throw new Error(`Cloudflare API 요청 실패: ${message}`);
 	}
-	return payload.result;
+
+	return resultSchema.parse(payload.result);
 }
 
 export async function verifyCloudflareToken(token: string): Promise<void> {
-	await request<{ status: string }>("/user/tokens/verify", token);
+	await request("/user/tokens/verify", token, tokenVerificationSchema);
 }
 
 export async function listCloudflareAccounts(
 	token: string,
 ): Promise<CloudflareAccount[]> {
-	return request<CloudflareAccount[]>("/accounts?per_page=50", token);
+	return request("/accounts?per_page=50", token, z.array(accountSchema));
 }
 
 export async function listCloudflareZones(
@@ -49,6 +75,6 @@ export async function listCloudflareZones(
 		"account.id": accountId,
 		per_page: "50",
 	});
-	const zones = await request<CloudflareZone[]>(`/zones?${query}`, token);
+	const zones = await request(`/zones?${query}`, token, z.array(zoneSchema));
 	return zones.filter((zone) => zone.status === "active");
 }

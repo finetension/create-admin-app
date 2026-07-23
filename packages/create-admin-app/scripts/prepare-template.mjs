@@ -1,7 +1,7 @@
-import { execFileSync } from "node:child_process";
 import { cp, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { execa } from "execa";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const repositoryRoot = resolve(packageRoot, "../..");
@@ -18,12 +18,12 @@ function shouldInclude(path) {
 	return !path.startsWith("packages/") && !excludedFiles.has(path);
 }
 
-const trackedAndUntracked = execFileSync(
+const { stdout: listedFiles } = await execa(
 	"git",
 	["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
 	{ cwd: repositoryRoot },
-)
-	.toString("utf8")
+);
+const trackedAndUntracked = listedFiles
 	.split("\0")
 	.filter(Boolean)
 	.filter(shouldInclude);

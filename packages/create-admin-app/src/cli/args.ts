@@ -1,83 +1,112 @@
+import { type ParsedArgs, parseArgs as parseCittyArgs } from "citty";
 import type { CreateOptions } from "../core/context.js";
 
-const valueFlags: Record<string, "name" | "emails" | "domain" | "subdomain"> = {
-	"--name": "name",
-	"--emails": "emails",
-	"--domain": "domain",
-	"--subdomain": "subdomain",
-};
+export const createArgs = {
+	directory: {
+		type: "positional",
+		required: false,
+		description: "생성할 프로젝트 디렉터리",
+		valueHint: "directory",
+	},
+	name: {
+		type: "string",
+		description: "앱에 표시할 이름",
+		valueHint: "name",
+	},
+	emails: {
+		type: "string",
+		description: "Cloudflare Access 허용 이메일 목록",
+		valueHint: "email,...",
+	},
+	domain: {
+		type: "string",
+		description: "사용할 Cloudflare Zone",
+		valueHint: "domain",
+	},
+	subdomain: {
+		type: "string",
+		description: "수정 가능한 custom-domain prefix",
+		valueHint: "prefix",
+	},
+	github: {
+		type: "boolean",
+		description: "GitHub 저장소를 생성하고 push합니다.",
+		negativeDescription: "프로젝트를 로컬에만 생성합니다.",
+	},
+	cloudflare: {
+		type: "boolean",
+		description: "Cloudflare 운영 환경을 연결합니다.",
+		negativeDescription: "local D1 개발 환경만 설정합니다.",
+	},
+	public: {
+		type: "boolean",
+		default: false,
+		description: "Cloudflare 연결 없는 공개 GitHub 저장소를 생성합니다.",
+	},
+	deploy: {
+		type: "boolean",
+		default: false,
+		description: "첫 production deployment를 dispatch합니다.",
+	},
+	"skip-install": {
+		type: "boolean",
+		default: false,
+		description: "pnpm 의존성 설치를 건너뜁니다.",
+	},
+	yes: {
+		type: "boolean",
+		alias: "y",
+		default: false,
+		description: "비파괴 기본값을 승인합니다.",
+	},
+} as const;
 
-const booleanFlags: Record<
-	string,
-	readonly [
-		(
-			| "yes"
-			| "skipInstall"
-			| "github"
-			| "cloudflare"
-			| "public"
-			| "deploy"
-			| "help"
-		),
-		boolean,
-	]
-> = {
-	"--yes": ["yes", true],
-	"--skip-install": ["skipInstall", true],
-	"--github": ["github", true],
-	"--no-github": ["github", false],
-	"--cloudflare": ["cloudflare", true],
-	"--no-cloudflare": ["cloudflare", false],
-	"--public": ["public", true],
-	"--deploy": ["deploy", true],
-	"--help": ["help", true],
-	"-h": ["help", true],
-};
+const parsedArgumentKeys = new Set([
+	"_",
+	"directory",
+	"name",
+	"emails",
+	"domain",
+	"subdomain",
+	"github",
+	"cloudflare",
+	"public",
+	"deploy",
+	"skip-install",
+	"skipInstall",
+	"yes",
+	"y",
+]);
 
-export function parseArgs(argv: string[]): CreateOptions {
-	const options: CreateOptions = {
-		yes: false,
-		skipInstall: false,
-		public: false,
-		deploy: false,
-		help: false,
-	};
-	const positionals: string[] = [];
-
-	for (let index = 0; index < argv.length; index += 1) {
-		const raw = argv[index];
-		if (!raw) continue;
-		const equalsIndex = raw.indexOf("=");
-		const flag = equalsIndex === -1 ? raw : raw.slice(0, equalsIndex);
-		const inlineValue =
-			equalsIndex === -1 ? undefined : raw.slice(equalsIndex + 1);
-		const boolean = booleanFlags[flag];
-		if (boolean) {
-			if (inlineValue !== undefined) {
-				throw new Error(`${flag}에는 값을 지정할 수 없습니다.`);
-			}
-			const [key, value] = boolean;
-			(options as unknown as Record<string, unknown>)[key] = value;
-			continue;
-		}
-		const valueKey = valueFlags[flag];
-		if (valueKey) {
-			const value = inlineValue ?? argv[index + 1];
-			if (!value || (inlineValue === undefined && value.startsWith("--"))) {
-				throw new Error(`${flag} 값이 필요합니다.`);
-			}
-			options[valueKey] = value;
-			if (inlineValue === undefined) index += 1;
-			continue;
-		}
-		if (raw.startsWith("-")) throw new Error(`알 수 없는 옵션입니다: ${raw}`);
-		positionals.push(raw);
+export function resolveCreateOptions(
+	parsed: ParsedArgs<typeof createArgs>,
+): CreateOptions {
+	const unknownArgument = Object.keys(parsed).find(
+		(key) => !parsedArgumentKeys.has(key),
+	);
+	if (unknownArgument) {
+		throw new Error(`알 수 없는 옵션입니다: ${unknownArgument}`);
 	}
-
-	if (positionals.length > 1) {
+	if (parsed._.length > 1) {
 		throw new Error("생성할 디렉터리는 하나만 지정할 수 있습니다.");
 	}
-	if (positionals[0]) options.directory = positionals[0];
+
+	const options: CreateOptions = {
+		yes: parsed.yes,
+		skipInstall: parsed["skip-install"],
+		public: parsed.public,
+		deploy: parsed.deploy,
+		...(parsed.directory ? { directory: parsed.directory } : {}),
+		...(parsed.name ? { name: parsed.name } : {}),
+		...(parsed.emails ? { emails: parsed.emails } : {}),
+		...(parsed.domain ? { domain: parsed.domain } : {}),
+		...(parsed.subdomain ? { subdomain: parsed.subdomain } : {}),
+		...(parsed.github === undefined ? {} : { github: parsed.github }),
+		...(parsed.cloudflare === undefined
+			? {}
+			: { cloudflare: parsed.cloudflare }),
+	};
+
 	if (options.subdomain && !options.domain) {
 		throw new Error("--subdomain은 --domain과 함께 사용해야 합니다.");
 	}
@@ -109,22 +138,12 @@ export function parseArgs(argv: string[]): CreateOptions {
 		options.github = true;
 		options.cloudflare = false;
 	}
+
 	return options;
 }
 
-export const helpText = `Usage: pnpm create @finetension/admin-app [directory] [options]
-
-Options:
-  --name <name>           Display name
-  --emails <email,...>    Cloudflare Access allowlist
-  --domain <domain>       Custom domain zone
-  --subdomain <prefix>    Editable custom-domain prefix
-  --github                Create and push a GitHub repository
-  --no-github             Keep the project local
-  --cloudflare            Configure Cloudflare (token from prompt or environment)
-  --no-cloudflare         Keep local D1 development only
-  --public                Create a public, local-only GitHub repository
-  --deploy                Dispatch the first production deployment
-  --skip-install          Do not install pnpm dependencies
-  --yes                   Accept non-destructive defaults
-  -h, --help              Show this help`;
+export function parseArgs(argv: string[]): CreateOptions {
+	return resolveCreateOptions(
+		parseCittyArgs<typeof createArgs>(argv, createArgs),
+	);
+}

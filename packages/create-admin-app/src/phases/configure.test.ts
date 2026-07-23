@@ -9,7 +9,6 @@ function fixtureContext(cloudflare = false): CreateContext {
 			skipInstall: false,
 			public: false,
 			deploy: false,
-			help: false,
 		},
 		interactive: false,
 		project: {

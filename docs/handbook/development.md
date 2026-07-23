@@ -16,6 +16,8 @@
 
 phase는 하나의 `CreateContext`를 순서대로 전달하며 앞 단계가 실패하면 이후 외부 변경을 실행하지 않는다. 단일 canonical template을 유지하므로 다중 template registry나 선택형 업무 installer는 두지 않는다. `packages/create-admin-app/template`은 Git으로 추적하지 않는 build artifact다. `pnpm run generator:check`, 로컬 생성 명령과 npm `prepack`은 항상 canonical root에서 snapshot을 새로 만들므로 복사본을 별도 source of truth로 관리하거나 커밋하지 않는다.
 
+생성 CLI의 기반 경계는 검증된 전용 라이브러리로 유지한다. 명령 정의와 인자 해석은 `citty`, 대화형 입력은 `@clack/prompts`, 외부 프로세스 실행은 `execa`, HTTP 요청과 응답 검증은 `ofetch`와 `zod`, OS credential store 접근은 `@napi-rs/keyring`을 사용한다. 프로젝트 파일 복사와 변환은 Node.js 표준 파일 API를 사용한다.
+
 ## 시작
 
 ```bash

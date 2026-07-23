@@ -10,7 +10,6 @@ export interface CreateOptions {
 	cloudflare?: boolean;
 	public: boolean;
 	deploy: boolean;
-	help: boolean;
 }
 
 export interface CloudflareSetup {

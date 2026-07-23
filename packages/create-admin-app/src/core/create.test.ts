@@ -9,7 +9,6 @@ function fixtureContext(): CreateContext {
 			skipInstall: true,
 			public: false,
 			deploy: false,
-			help: false,
 		},
 		interactive: false,
 		project: {

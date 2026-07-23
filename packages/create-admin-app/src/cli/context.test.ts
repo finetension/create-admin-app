@@ -14,7 +14,6 @@ describe("createContext", () => {
 			cloudflare: false,
 			public: false,
 			deploy: false,
-			help: false,
 		});
 
 		expect(context).toMatchObject({
@@ -37,7 +36,6 @@ describe("createContext", () => {
 				skipInstall: true,
 				public: false,
 				deploy: false,
-				help: false,
 			}),
 		).rejects.toThrow("디렉터리");
 	});
