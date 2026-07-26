@@ -39,6 +39,28 @@ describe("create context", () => {
 		).rejects.toThrow("디렉터리");
 	});
 
+	it("marks a missing Access email as security input that cannot be inferred", async () => {
+		await expect(
+			createContext({
+				directory: "my-admin",
+				yes: false,
+				skipInstall: true,
+				public: false,
+				deploy: false,
+				json: true,
+				interactive: false,
+			}),
+		).rejects.toMatchObject({
+			code: "missing_required_input",
+			exitCode: 2,
+			details: {
+				field: "allowed_emails",
+				option: "--emails",
+				may_infer: false,
+			},
+		});
+	});
+
 	it("requires explicit approval before non-JSON machine deploys", async () => {
 		await expect(
 			createContext({

@@ -7,6 +7,8 @@ allowBuilds:
   esbuild: true
   sharp: true
   workerd: true
+overrides:
+  brace-expansion: 5.0.8
 minimumReleaseAgeExclude:
   - '@biomejs/biome@2.5.4'
   - '@biomejs/cli-darwin-arm64@2.5.4'
@@ -17,7 +19,7 @@ minimumReleaseAgeExclude:
   - '@biomejs/cli-linux-x64@2.5.4'
   - '@biomejs/cli-win32-arm64@2.5.4'
   - '@biomejs/cli-win32-x64@2.5.4'
-  - '@cloudflare/workers-types@5.20260717.1 || 5.20260724.1'
+  - '@cloudflare/workers-types@5.20260717.1 || 5.20260724.1 || 5.20260726.1'
 
 allowedDeprecatedVersions:
   tsconfck: 3.1.6

@@ -8,6 +8,7 @@ import {
 	normalizeEmails,
 	packageNameFromDirectory,
 } from "../core/project.js";
+import { missingAllowedEmailsError } from "./error.js";
 import { answer } from "./prompts.js";
 
 export async function createContext(
@@ -71,7 +72,7 @@ export async function createContext(
 				)
 			: undefined);
 	if (!rawEmails) {
-		throw new Error("비인터랙티브 생성에는 --emails가 필요합니다.");
+		throw missingAllowedEmailsError();
 	}
 	return {
 		args: options,

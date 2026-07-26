@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildLogTailArgs, resolveLogTerminationReason } from "./logs.ts";
+import {
+	buildLogTailArgs,
+	extractLogEvents,
+	resolveLogTerminationReason,
+} from "./logs.ts";
 
 describe("buildLogTailArgs", () => {
 	it("builds a readable default tail command", () => {
@@ -86,5 +90,40 @@ describe("buildLogTailArgs", () => {
 				failed: false,
 			}),
 		).toBe("stream_ended");
+	});
+
+	it("reassembles pretty-printed Wrangler JSON into complete events", () => {
+		const firstChunk = extractLogEvents(
+			'{\n  "event": {\n    "request": {"url": "https://example.com/{probe}"}\n',
+		);
+		expect(firstChunk.events).toEqual([]);
+
+		const secondChunk = extractLogEvents(
+			`${firstChunk.remainder}  },\n  "outcome": "ok"\n}\n{\n  "event": "second"\n}\n`,
+		);
+		expect(secondChunk).toEqual({
+			events: [
+				{
+					event: {
+						request: { url: "https://example.com/{probe}" },
+					},
+					outcome: "ok",
+				},
+				{ event: "second" },
+			],
+			remainder: "",
+		});
+	});
+
+	it("keeps incomplete data buffered and flushes raw diagnostics once", () => {
+		const partial = extractLogEvents('connecting to tail\n{"event":');
+		expect(partial).toEqual({
+			events: ["connecting to tail"],
+			remainder: '{"event":',
+		});
+		expect(extractLogEvents(partial.remainder, true)).toEqual({
+			events: ['{"event":'],
+			remainder: "",
+		});
 	});
 });

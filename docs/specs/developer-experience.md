@@ -1,7 +1,7 @@
 # Create Admin App Developer Experience
 
 - 상태: 목표 사용자 여정과 구현 계약 확정
-- 최종 수정: 2026-07-25
+- 최종 수정: 2026-07-26
 - 범위: 프로젝트 생성부터 에이전트 기반 개발, 원격 연결, 첫 배포와 일상 운영까지
 
 ## 1. 문서 역할
@@ -152,6 +152,7 @@ pnpm cli auth logout
 `doctor`는 파일, 의존성, credential 또는 원격 상태를 변경하지 않으며 `--fix`를 제공하지 않는다. 각 오류의 hint는 에이전트가 그대로 실행하거나 적용할 수 있는 구체적인 명령 또는 설정 변경을 포함한다.
 
 machine mode의 `logs`는 단일 JSON document 대신 NDJSON을 사용한다. stdout에 각 log event를 한 줄씩 즉시 출력하고 마지막 줄에는 수신 개수, 실제 실행 시간과 종료 이유를 가진 `summary` event를 출력한다. 진행 메시지는 계속 stderr로 분리하며 각 줄은 독립적으로 parse 가능한 JSON이어야 한다.
+Wrangler가 하나의 event를 여러 줄 JSON으로 출력하더라도 CLI는 완전한 event 하나를 단일 NDJSON `log` record로 재조립한다. `summary.received`는 Wrangler 출력 줄 수가 아니라 완전하게 수신한 Worker event 수다.
 
 첫 배포 이후 `dev`는 Access로 보호된 Worker를 통해 remote D1 binding에 연결한다. 유효한 Access 로그인이 없고 TTY라면 Wrangler의 브라우저 로그인을 시작한다. machine mode에서는 브라우저를 열지 않고 `access_login_required` 설정 오류와 `pnpm cli dev --interactive` 실행 hint를 반환한다. 공통 기반은 로컬 remote development를 위한 Access service token을 만들거나 저장하지 않는다.
 
@@ -249,6 +250,8 @@ pnpm create @finetension/admin-app -- my-company --public --deploy --yes --messa
 | `--message <message>` | deploy 자동 commit message | deploy가 변경을 만들면 필수 |
 | `--yes` | deploy 외부 변경 승인 | `--deploy`와 함께 필수 |
 | `--json` | machine mode와 JSON 출력 | 에이전트 실행의 기준 |
+
+`allowed_emails`는 Cloudflare Access의 운영 인가 경계이므로 에이전트가 Git author, 서비스 이름, 도메인 또는 예시 값으로 추론하면 안 된다. machine mode에서 `--emails`가 없으면 생성기는 `missing_required_input` 오류와 `field`, `option`, `may_infer: false`를 반환하고, 실제 로그인할 이메일을 사용자에게 물어본 뒤 같은 명령을 재실행하도록 안내한다.
 
 ### 시작 전 확인
 
@@ -366,6 +369,7 @@ secretlint 오탐은 Git으로 추적하는 `.secretlintignore`에 가능한 가
 ### 배포 실패
 
 push 뒤 Actions가 실패하면 생성한 commit과 push, 이미 완료된 원격 단계는 그대로 유지한다. CLI는 실패한 job·step, Actions URL, 확인된 오류와 다음 실행 명령을 구조화해 출력하고 외부 API 오류 종료 코드 `4`로 끝난다. 자동 workflow 재시도, Git revert 또는 Cloudflare rollback은 수행하지 않는다.
+workflow 조회 중 GitHub API timeout이나 5xx처럼 안전하게 반복할 수 있는 일시 오류는 짧게 최대 3회 재시도한다. 그래도 실패하면 인증 오류와 네트워크·서비스 오류를 구분해, 사용자가 수동 `git push` 같은 우회 명령 대신 동일한 `pnpm cli` 명령을 다시 실행하도록 안내한다. repository 존재 확인 중 네트워크 실패를 존재하지 않는 repository로 취급하지 않는다.
 
 원인을 수정한 변경이 있으면 새 message로 같은 `deploy`를 다시 실행한다. Git 변경이 없다면 같은 commit을 대상으로 `workflow_dispatch`를 다시 요청한다. 각 단계는 프로젝트 설정과 실제 원격 상태를 다시 조회해 완료된 작업을 재사용하고 남은 상태로 수렴해야 한다.
 
@@ -405,7 +409,7 @@ token을 shell history에 남기는 option은 제공하지 않는다.
 
 ## 9. 배포 이후
 
-Application Deploy workflow는 `pnpm install --frozen-lockfile`과 `pnpm check`를 다시 수행한다. 성공한 뒤 D1 migration, Worker 배포, 기존 IdP를 보존한 OTP 보장, Access application·email policy 배포, smoke check와 lifecycle commit을 수행한다. smoke check는 Cloudflare API에서 Worker deployment가 active인지 확인하고 인증되지 않은 production URL이 앱 응답 대신 Access 로그인 또는 거부 응답을 반환하는지 검사한다. 공통 기반은 CI용 Access service token이나 인증된 운영 데이터 요청을 사용하지 않는다.
+Application Deploy workflow는 Cloudflare secret을 사용하지 않는 validation job에서 `pnpm install --frozen-lockfile`과 `pnpm check`를 다시 수행한다. Cloudflare mutation job은 이 job을 `needs`로 요구하며, 성공한 뒤에만 D1 migration, Worker 배포, 기존 IdP를 보존한 OTP 보장, Access application·email policy 배포, smoke check와 lifecycle commit을 수행한다. 별도 Application CI가 같은 push에서 병렬로 실행되더라도 Deploy 자체의 validation이 운영 반영을 차단한다. smoke check는 Cloudflare API에서 Worker deployment가 active인지 확인하고 인증되지 않은 production URL이 앱 응답 대신 Access 로그인 또는 거부 응답을 반환하는지 검사한다. 공통 기반은 CI용 Access service token이나 인증된 운영 데이터 요청을 사용하지 않는다.
 
 첫 배포 뒤 local branch가 workflow의 lifecycle commit까지 동기화되면 `pnpm cli dev`는 기준 remote D1을 사용한다. 첫 remote 연결에 Access 로그인이 필요하면 TTY에서 브라우저 인증을 수행하고 machine mode에서는 구조화 오류로 사용자 handoff를 요청한다. 운영 migration과 destroy는 계속 Actions capability 안에서만 실행한다.
 
@@ -420,6 +424,7 @@ Application Deploy workflow는 `pnpm install --frozen-lockfile`과 `pnpm check`�
 - 중간 실패 뒤 불완전한 대상 디렉터리가 남지 않는다.
 - 생성 결과는 모노레포나 전역 CLI에 의존하지 않는다.
 - machine mode는 `--emails`를 포함한 문서화된 option만으로 프롬프트 없이 완료된다.
+- machine mode에서 빠진 Access 이메일은 추론 금지 필수 입력으로 구조화되고 에이전트가 실제 사용자에게 질문할 수 있다.
 - 같은 create package version은 독립 template lockfile과 frozen install로 같은 dependency graph를 만든다.
 - 생성된 문서와 초기 UI에는 Create Admin App monorepo 또는 Beestory 전용 요구사항이 없다.
 
@@ -430,6 +435,7 @@ Application Deploy workflow는 `pnpm install --frozen-lockfile`과 `pnpm check`�
 - Zero Trust organization이 없으면 설정 URL로 중단하고 온보딩 뒤 같은 명령으로 재개된다.
 - `workers.dev`가 기본이지만 인터랙티브에서 custom domain을 선택할 수 있다.
 - 같은 명령을 재실행하면 일부 완료된 원격 상태에 수렴한다.
+- Cloudflare mutation은 같은 Application Deploy workflow의 전체 validation 성공 뒤에만 시작한다.
 - token이 파일, process argument, stdout이나 Git 기록에 존재하지 않는다.
 - Actions 완료와 local lifecycle fast-forward까지 기다린 뒤 production URL을 출력한다.
 - destroy 완료 뒤 lifecycle이 `destroyed`로 동기화되고, 재배포하면 다시 `deployed`로 수렴한다.

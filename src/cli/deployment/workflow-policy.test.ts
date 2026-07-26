@@ -16,6 +16,9 @@ describe("production workflow policy", () => {
 		expect(source).toContain("workflow_dispatch:");
 		expect(source).not.toContain("repository.private");
 		expect(source).not.toContain("environment: production");
+		expect(source).toContain("validate:");
+		expect(source).toContain("run: pnpm check");
+		expect(source).toContain("needs: validate");
 		expect(source).toContain("pnpm cli internal deploy --json");
 		expect(source).toContain("secrets.CLOUDFLARE_API_TOKEN");
 		expect(source).toContain("finetension/create-admin-app");

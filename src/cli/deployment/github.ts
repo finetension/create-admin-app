@@ -1,5 +1,7 @@
+import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
 import { CliError, externalError } from "../core/error.ts";
+import { progress } from "../core/logger.ts";
 import { runCommand } from "../core/process.ts";
 
 export interface GitHubOwner {
@@ -43,19 +45,58 @@ export async function resolveGitHubRemoteUrl(
 	return githubRemoteUrl(repository, protocol);
 }
 
-async function ghJson<T>(args: string[], schema: z.ZodType<T>): Promise<T> {
-	const result = await runCommand("gh", args, {
-		capture: true,
-		allowFailure: true,
-		ci: false,
-	});
-	if (result.exitCode !== 0) {
-		throw externalError(
-			"github_api_failed",
-			result.stderr.trim() || `gh ${args[0]} 요청이 실패했습니다.`,
-			"gh auth status를 확인한 뒤 다시 실행하세요.",
-		);
+export function isTransientGitHubFailure(message: string): boolean {
+	return /operation timed out|timed out|timeout|connection reset|connection refused|temporary failure|network is unreachable|unexpected eof|http 5\d\d|status code 5\d\d|bad gateway|service unavailable|gateway timeout/i.test(
+		message,
+	);
+}
+
+export function githubApiFailureHint(message: string): string {
+	if (
+		/401|403|authentication|bad credentials|not logged|oauth/i.test(message)
+	) {
+		return "gh auth status를 확인한 뒤 같은 pnpm cli 명령을 다시 실행하세요.";
 	}
+	return "일시적인 네트워크 또는 GitHub API 오류일 수 있습니다. 같은 pnpm cli 명령을 다시 실행하세요. 반복되면 GitHub 상태와 gh auth status를 확인하세요.";
+}
+
+export function isGitHubRepositoryMissing(message: string): boolean {
+	return /could not resolve to a repository|repository (?:was )?not found|http 404/i.test(
+		message,
+	);
+}
+
+async function runGitHubJsonCommand(args: string[]) {
+	const maximumAttempts = 3;
+	for (let attempt = 1; attempt <= maximumAttempts; attempt += 1) {
+		const result = await runCommand("gh", args, {
+			capture: true,
+			allowFailure: true,
+			ci: false,
+		});
+		if (result.exitCode === 0) {
+			return result;
+		}
+
+		const message =
+			result.stderr.trim() || `gh ${args[0]} 요청이 실패했습니다.`;
+		if (!isTransientGitHubFailure(message) || attempt === maximumAttempts) {
+			throw externalError(
+				"github_api_failed",
+				message,
+				githubApiFailureHint(message),
+			);
+		}
+		progress(
+			`GitHub API가 일시적으로 응답하지 않아 재시도합니다 (${attempt}/${maximumAttempts - 1}).`,
+		);
+		await delay(attempt * 1_000);
+	}
+	throw new Error("unreachable");
+}
+
+async function ghJson<T>(args: string[], schema: z.ZodType<T>): Promise<T> {
+	const result = await runGitHubJsonCommand(args);
 	return schema.parse(JSON.parse(result.stdout));
 }
 
@@ -93,12 +134,21 @@ export async function listGitHubOwners(): Promise<GitHubOwner[]> {
 export async function inspectGitHubRepository(
 	repository: string,
 ): Promise<GitHubRepository | null> {
-	const result = await runCommand(
-		"gh",
-		["repo", "view", repository, "--json", "nameWithOwner,visibility,url"],
-		{ capture: true, allowFailure: true, ci: false },
-	);
-	if (result.exitCode !== 0) return null;
+	let result: Awaited<ReturnType<typeof runGitHubJsonCommand>>;
+	try {
+		result = await runGitHubJsonCommand([
+			"repo",
+			"view",
+			repository,
+			"--json",
+			"nameWithOwner,visibility,url",
+		]);
+	} catch (error) {
+		if (error instanceof CliError && isGitHubRepositoryMissing(error.message)) {
+			return null;
+		}
+		throw error;
+	}
 	const value = z
 		.object({
 			nameWithOwner: z.string(),

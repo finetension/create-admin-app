@@ -55,10 +55,11 @@ public 저장소의 source, `config.toml`에 기록된 허용 이메일과 Actio
 ## 워크플로
 
 - `application-ci.yml`: 모든 PR과 `main` push를 검증하고 임시 local D1에 전체 migration을 적용
-- `application-deploy.yml`: `main` push 또는 수동 dispatch로 실행. 설정과 자격 증명 진단, D1 migration, Worker·OTP·Access 배포와 검증, lifecycle 자동 commit
+- `application-deploy.yml`: `main` push 또는 수동 dispatch로 실행. Cloudflare secret 없는 validation job이 `pnpm check`를 통과해야 mutation job이 설정과 자격 증명 진단, D1 migration, Worker·OTP·Access 배포와 검증, lifecycle 자동 commit을 수행
 - `application-destroy.yml`: guarded 인프라 destroy. `main`, 허용 event, 작업별 capability와 정확한 서비스명 확인을 강제
 
-GitHub Actions가 제품이 지원하고 감사하는 Cloudflare 운영 mutation 실행 환경이다. 로컬 `pnpm cli deploy`는 전체 계획을 확인한 뒤 `config.toml` 갱신, 검증, secret 검사, Git commit·push, GitHub repository secret 설정, workflow 결과 대기와 lifecycle fast-forward를 orchestration한다. Cloudflare API를 변경하는 단계는 실행하지 않는다.
+GitHub Actions가 제품이 지원하고 감사하는 Cloudflare 운영 mutation 실행 환경이다. 로컬 `pnpm cli deploy`는 전체 계획을 확인한 뒤 `config.toml` 갱신, 검증, secret 검사, Git commit·push, GitHub repository secret 설정, workflow 결과 대기와 lifecycle fast-forward를 orchestration한다. Cloudflare API를 변경하는 단계는 실행하지 않는다. Application Deploy 안에서도 validation과 mutation을 별도 job으로 분리하고 mutation은 validation을 `needs`로 요구해, 같은 push의 별도 Application CI 완료 시점과 관계없이 실패한 변경이 운영에 반영되지 않게 한다.
+GitHub API의 안전한 read 요청이 timeout 또는 5xx로 실패하면 CLI가 짧게 최대 3회 재시도한다. 반복 실패 시에는 완료된 commit·push·workflow 상태를 유지하고 같은 제품 CLI 명령의 재실행을 안내한다. repository 조회 실패를 곧바로 repository 부재로 간주하지 않는다.
 workflow의 Cloudflare 단계는 숨겨진 `pnpm cli internal deploy` 또는 `pnpm cli internal destroy`를 호출한다. 내부 명령은 GitHub Actions 환경, `main` ref, 허용 event와 작업별 capability가 모두 일치할 때만 실행하고 process의 `CLOUDFLARE_API_TOKEN`만 사용한다. OS credential store의 같은 write token 때문에 Actions는 token 자체의 보안 경계가 아니며, CLI가 지원하는 mutation·감사 경계다.
 
 새 GitHub repository는 repository token secret을 먼저 설정한 뒤 첫 `main` push를 실행해 자격 증명 없는 첫 deploy가 시작되는 race를 피한다. 임의 shell 문자열을 받는 범용 workflow를 만들지 않고 각 operation과 입력을 명시한다.
@@ -69,7 +70,7 @@ Deploy smoke check는 Cloudflare API에서 Worker deployment가 active인지 확
 
 `pnpm cli doctor`는 로컬 도구, 설정, lifecycle, Git과 인증 준비 상태를 진단한다. `pnpm cli status`는 Worker, D1, Access와 custom domain 상태를 Cloudflare에서 직접 조회하고 Git 추적 설정과의 drift를 표시한다. JSON 결과의 redirect location은 query와 fragment를 제거하며 Cloudflare Access challenge 경로는 opaque segment를 `[redacted]`로 바꾼다. `pnpm cli logs`는 현재 터미널에만 Worker live log를 표시한다. TTY에서는 `Ctrl-C`까지 유지하고 비인터랙티브·에이전트 환경에서는 기본 30초 뒤 종료하며 `--duration`으로 재정의할 수 있다. 세 명령은 원격 상태를 변경하지 않고 GitHub Actions나 artifact를 만들지 않는다.
 
-machine mode의 `logs`는 각 이벤트를 stdout에 NDJSON 한 줄로 즉시 출력하고 마지막에 실행 시간, 수신 개수와 종료 이유를 담은 summary event를 출력한다. 진행 상태는 stderr로 분리한다.
+machine mode의 `logs`는 완전한 Worker 이벤트마다 stdout에 NDJSON 한 줄을 즉시 출력하고 마지막에 실행 시간, 이벤트 수와 종료 이유를 담은 summary event를 출력한다. Wrangler의 여러 줄 JSON은 한 이벤트로 재조립하며 진행 상태는 stderr로 분리한다.
 
 배포 후 remote D1 binding은 Access로 보호된 Worker를 통하므로 첫 local development에 [사용자 로그인이 필요](https://developers.cloudflare.com/workers/local-development/#connect-to-access-protected-workers)할 수 있다. TTY의 `pnpm cli dev`는 Wrangler의 브라우저 로그인을 시작한다. machine mode는 브라우저를 열지 않고 `access_login_required`와 `pnpm cli dev --interactive` hint를 반환한다. 로컬 remote development용 Access service token은 만들지 않는다.
 

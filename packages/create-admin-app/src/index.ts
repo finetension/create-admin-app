@@ -9,6 +9,7 @@ import {
 	resolveCreateOptions,
 } from "./cli/args.js";
 import { createContext } from "./cli/context.js";
+import { CreateCliError } from "./cli/error.js";
 import { createProject } from "./core/create.js";
 import { CreateDeploymentError } from "./phases/finalize.js";
 
@@ -55,6 +56,19 @@ function structuredError(error: unknown) {
 					code: "deployment_failed",
 					message,
 					hint: "생성된 프로젝트에서 pnpm cli deploy를 다시 실행하세요.",
+				},
+			},
+		};
+	}
+	if (error instanceof CreateCliError) {
+		return {
+			exitCode: error.exitCode,
+			value: {
+				error: {
+					code: error.code,
+					message: error.message,
+					hint: error.hint,
+					...(error.details === undefined ? {} : { details: error.details }),
 				},
 			},
 		};

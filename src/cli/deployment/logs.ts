@@ -55,6 +55,86 @@ function splitList(value?: string): string[] {
 		: [];
 }
 
+export function extractLogEvents(
+	input: string,
+	flush = false,
+): { events: unknown[]; remainder: string } {
+	const events: unknown[] = [];
+	let cursor = 0;
+
+	while (cursor < input.length) {
+		while (cursor < input.length && /\s/.test(input[cursor] ?? "")) {
+			cursor += 1;
+		}
+		if (cursor >= input.length) return { events, remainder: "" };
+
+		const first = input[cursor];
+		if (first !== "{" && first !== "[") {
+			const newline = input.indexOf("\n", cursor);
+			if (newline === -1) {
+				if (flush) {
+					const raw = input.slice(cursor).trim();
+					if (raw) events.push(raw);
+					return { events, remainder: "" };
+				}
+				return { events, remainder: input.slice(cursor) };
+			}
+			const raw = input.slice(cursor, newline).trim();
+			if (raw) events.push(raw);
+			cursor = newline + 1;
+			continue;
+		}
+
+		const start = cursor;
+		let depth = 0;
+		let inString = false;
+		let escaped = false;
+		let complete = false;
+
+		for (; cursor < input.length; cursor += 1) {
+			const character = input[cursor] ?? "";
+			if (inString) {
+				if (escaped) {
+					escaped = false;
+				} else if (character === "\\") {
+					escaped = true;
+				} else if (character === '"') {
+					inString = false;
+				}
+				continue;
+			}
+			if (character === '"') {
+				inString = true;
+				continue;
+			}
+			if (character === "{" || character === "[") depth += 1;
+			if (character === "}" || character === "]") depth -= 1;
+			if (depth === 0) {
+				const value = input.slice(start, cursor + 1);
+				try {
+					events.push(JSON.parse(value));
+				} catch {
+					events.push(value);
+				}
+				cursor += 1;
+				complete = true;
+				break;
+			}
+		}
+
+		if (!complete) {
+			if (flush) {
+				const raw = input.slice(start).trim();
+				if (raw) events.push(raw);
+				return { events, remainder: "" };
+			}
+			return { events, remainder: input.slice(start) };
+		}
+	}
+
+	return { events, remainder: "" };
+}
+
 export function buildLogTailArgs(
 	workerName: string,
 	options: LogTailOptions = {},
@@ -139,24 +219,17 @@ export async function tailWorkerLogs(
 	});
 	let received = 0;
 	let buffer = "";
-	const writeLogLine = (line: string) => {
-		if (!line.trim()) return;
+	const writeLogEvent = (data: unknown) => {
 		received += 1;
-		try {
-			process.stdout.write(
-				`${JSON.stringify({ type: "log", data: JSON.parse(line) })}\n`,
-			);
-		} catch {
-			process.stdout.write(`${JSON.stringify({ type: "log", data: line })}\n`);
-		}
+		process.stdout.write(`${JSON.stringify({ type: "log", data })}\n`);
 	};
 	if (cliRuntime().machine) {
 		subprocess.stdout?.on("data", (chunk: Buffer | string) => {
 			buffer += chunk.toString();
-			const lines = buffer.split("\n");
-			buffer = lines.pop() ?? "";
-			for (const line of lines) {
-				writeLogLine(line);
+			const parsed = extractLogEvents(buffer);
+			buffer = parsed.remainder;
+			for (const event of parsed.events) {
+				writeLogEvent(event);
 			}
 		});
 	} else {
@@ -177,7 +250,10 @@ export async function tailWorkerLogs(
 		result.exitCode !== 130 &&
 		result.signal !== "SIGINT";
 	if (cliRuntime().machine) {
-		writeLogLine(buffer);
+		const parsed = extractLogEvents(buffer, true);
+		for (const event of parsed.events) {
+			writeLogEvent(event);
+		}
 		if (failed) {
 			process.stdout.write(
 				`${JSON.stringify({

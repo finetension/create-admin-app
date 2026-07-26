@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+	githubApiFailureHint,
 	githubRemoteUrl,
+	isGitHubRepositoryMissing,
+	isTransientGitHubFailure,
 	selectWorkflowRun,
 	summarizeWorkflowFailure,
 } from "./github.ts";
@@ -13,6 +16,32 @@ describe("GitHub workflow failure reporting", () => {
 		expect(githubRemoteUrl("finetension/example", "https")).toBe(
 			"https://github.com/finetension/example.git",
 		);
+	});
+
+	it("distinguishes transient GitHub failures from authentication failures", () => {
+		const timeout =
+			'Get "https://api.github.com/repos/example": read: operation timed out';
+		expect(isTransientGitHubFailure(timeout)).toBe(true);
+		expect(githubApiFailureHint(timeout)).toContain(
+			"같은 pnpm cli 명령을 다시 실행",
+		);
+
+		const authentication = "HTTP 401: Bad credentials";
+		expect(isTransientGitHubFailure(authentication)).toBe(false);
+		expect(githubApiFailureHint(authentication)).toContain("gh auth status");
+	});
+
+	it("only treats a confirmed missing repository as absent", () => {
+		expect(
+			isGitHubRepositoryMissing(
+				"GraphQL: Could not resolve to a Repository with the name 'example/missing'.",
+			),
+		).toBe(true);
+		expect(
+			isGitHubRepositoryMissing(
+				'Get "https://api.github.com/repos/example": operation timed out',
+			),
+		).toBe(false);
 	});
 
 	it("ignores an older run for the same clean commit", () => {
