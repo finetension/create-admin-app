@@ -1,0 +1,4 @@
+[project]
+name = "Management System"
+slug = "management-system"
+allowed_emails = ["admin@example.com"]

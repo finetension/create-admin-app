@@ -1,0 +1,60 @@
+{
+	"name": "@finetension/create-admin-app",
+	"version": "0.2.7",
+	"description": "Create a Cloudflare-native internal admin app",
+	"license": "MIT",
+	"keywords": [
+		"cloudflare",
+		"react",
+		"hono",
+		"heroui",
+		"admin",
+		"scaffold"
+	],
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/finetension/create-admin-app.git",
+		"directory": "packages/create-admin-app"
+	},
+	"homepage": "https://github.com/finetension/create-admin-app#readme",
+	"bugs": {
+		"url": "https://github.com/finetension/create-admin-app/issues"
+	},
+	"type": "module",
+	"bin": {
+		"create-admin-app": "./dist/index.js"
+	},
+	"files": [
+		"dist",
+		"template",
+		"README.md"
+	],
+	"engines": {
+		"node": ">=22.13.0"
+	},
+	"scripts": {
+		"prebuild": "node ./scripts/clean.mjs",
+		"build": "tsc -p tsconfig.json",
+		"prepare:template": "node ./scripts/prepare-template.mjs",
+		"test": "vitest run",
+		"prepack": "pnpm run build && pnpm run prepare:template"
+	},
+	"dependencies": {
+		"@clack/prompts": "1.7.0",
+		"citty": "0.2.2",
+		"execa": "9.6.1",
+		"smol-toml": "1.7.0",
+		"std-env": "4.2.0",
+		"write-file-atomic": "7.0.1",
+		"zod": "4.4.3"
+	},
+	"devDependencies": {
+		"@types/node": "^26.1.1",
+		"@types/write-file-atomic": "4.0.3",
+		"typescript": "6.0.2",
+		"vitest": "4.1.10"
+	},
+	"publishConfig": {
+		"access": "public"
+	}
+}
