@@ -1,6 +1,6 @@
 {
 	"name": "@finetension/create-admin-app",
-	"version": "0.2.9",
+	"version": "0.2.10",
 	"description": "Create a Cloudflare-native internal admin app",
 	"license": "MIT",
 	"keywords": [
