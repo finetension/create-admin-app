@@ -57,6 +57,7 @@ describe("create context", () => {
 				field: "allowed_emails",
 				option: "--emails",
 				may_infer: false,
+				required_action: "ask_user",
 			},
 		});
 	});

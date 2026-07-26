@@ -252,7 +252,7 @@ pnpm create @finetension/admin-app -- my-company --public --deploy --yes --messa
 | `--yes` | deploy 외부 변경 승인 | `--deploy`와 함께 필수 |
 | `--json` | machine mode와 JSON 출력 | 에이전트 실행의 기준 |
 
-`allowed_emails`는 Cloudflare Access의 운영 인가 경계이므로 에이전트가 Git author, 서비스 이름, 도메인 또는 예시 값으로 추론하면 안 된다. machine mode에서 `--emails`가 없으면 생성기는 `missing_required_input` 오류와 `field`, `option`, `may_infer: false`를 반환하고, 실제 로그인할 이메일을 사용자에게 물어본 뒤 같은 명령을 재실행하도록 안내한다.
+`allowed_emails`는 Cloudflare Access의 운영 인가 경계이므로 에이전트가 Git author, 서비스 이름, 도메인 또는 예시 값으로 추론하면 안 된다. machine mode에서 `--emails`가 없으면 생성기는 `missing_required_input` 오류와 `field`, `option`, `may_infer: false`, `required_action: "ask_user"`를 반환하고, 다른 명령이나 소스 탐색 없이 실제 로그인할 이메일을 사용자에게 물어본 뒤 같은 명령을 재실행하도록 안내한다.
 
 ### 시작 전 확인
 
