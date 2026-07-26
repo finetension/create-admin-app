@@ -7,6 +7,7 @@ This document defines the public command contract and end-to-end developer journ
 - The repository remains independently understandable and runnable.
 - `pnpm cli help --all --json` is the machine-readable command authority.
 - Interactive commands guide a person with keyboard-selectable prompts.
+- Coding agents use non-interactive commands with `--json` and explicit approval flags by default.
 - Non-interactive commands never open a browser or wait for input.
 - `config.toml` stores non-secret project and deployment targets in Git.
 - Cloudflare credentials stay in the OS credential store and the GitHub repository Actions secret.
@@ -55,6 +56,8 @@ CI, redirected I/O, agent execution, or `--json` is machine mode. It must:
 
 Exit codes are stable: `0` success, `1` unexpected, `2` usage, `3` configuration or unhealthy status, `4` external or partial success, and `5` safety refusal.
 
+A coding agent must not select `--interactive` merely because it has a TTY. It uses machine mode and hands only a structured missing input, setup URL, or browser-login requirement back to the user.
+
 ## Project creation outcome
 
 The generator completes before this repository is shown to the user. A completed generated project has:
@@ -87,6 +90,12 @@ If an interactive deploy finds an invalid or insufficient stored token, it offer
 
 `pnpm cli deploy --dry-run --json` resolves and prints the plan without changing Git, GitHub, or Cloudflare.
 
+Agent-driven deployment uses the same resolved defaults without prompts:
+
+```bash
+pnpm cli deploy --yes --message "chore: deploy this project" --json
+```
+
 Interactive first deploy collects or confirms:
 
 1. GitHub owner, repository name, and private/public visibility.
@@ -96,7 +105,9 @@ Interactive first deploy collects or confirms:
 
 The local command then validates the project, scans secrets, prepares a commit, creates or converges the GitHub repository, stores the repository secret, pushes `main`, requests the guarded Application Deploy workflow, waits for it, and fast-forwards the lifecycle commit. It never mutates Worker, D1, Access, or routes from the local process.
 
-The Actions workflow applies append-only D1 migrations, deploys Worker and Access, verifies the protected endpoint, and commits `infra/lifecycle.json` as deployed. A failed or interrupted run is safe to diagnose and re-run.
+The Actions workflow first runs `pnpm check` in a validation job without Cloudflare credentials. Its mutation job requires that validation to pass before it applies append-only D1 migrations, deploys Worker and Access, verifies the protected endpoint, and commits `infra/lifecycle.json` as deployed. A failed or interrupted run is safe to diagnose and re-run.
+
+Safe GitHub API reads retry short timeouts and 5xx responses up to three times. A repeated failure distinguishes authentication from network or service errors and tells the agent to rerun the same product CLI command. A repository lookup transport failure is never treated as a missing repository.
 
 ## Status, logs, and destruction
 
@@ -104,7 +115,7 @@ The Actions workflow applies append-only D1 migrations, deploys Worker and Acces
 
 `pnpm cli status` reads Worker, D1, Access, route, and lifecycle state. It returns a non-zero configuration status when an error is present; `--strict` also treats warnings as failure. Status JSON summarizes redirect locations to their origin and path, omits query strings and fragments, and replaces the opaque Cloudflare Access challenge path segment with `[redacted]`.
 
-`pnpm cli logs` streams live Worker logs without creating artifacts. Machine mode has a bounded duration unless overridden.
+`pnpm cli logs` streams live Worker logs without creating artifacts. Machine mode has a bounded duration unless overridden, reassembles Wrangler multi-line JSON into one NDJSON record per complete Worker event, and counts events rather than output lines.
 
 `pnpm cli destroy` requests the guarded Application Destroy workflow. It deletes Access and Worker by default and preserves D1. `--include-data` explicitly adds irreversible D1 deletion. Machine mode requires `--yes --confirm <project-slug>`. Success commits and locally fast-forwards the `destroyed` lifecycle state; development resumes only after deploy returns it to `deployed`.
 

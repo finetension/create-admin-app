@@ -196,6 +196,7 @@ TTY에서 실행하고 `--json`을 지정하지 않으면 `@clack/prompts` 기�
 명시적 `--json`은 어떤 환경에서도 JSON 모드를 강제한다. 명시적 인터랙티브 option이 없는 한 `--json`과 프롬프트는 함께 사용하지 않는다.
 
 `--json`은 비인터랙티브 실행을 의미하며 `--interactive`와 함께 사용할 수 없다. 에이전트는 실행 환경이 TTY인지와 관계없이 `--json`으로 machine mode를 확정한다. CLI가 시작하는 모든 외부 mutation에는 별도의 `--yes`가 필요하다.
+에이전트는 TTY를 사용할 수 있더라도 기본적으로 `--json`, `--yes`와 명령별 확인 option을 조합하고, 단지 TTY가 있다는 이유로 `--interactive`를 선택하지 않는다. 구조화된 필수 입력·설정 URL·브라우저 로그인 handoff만 사용자에게 전달한다.
 
 ### 구조화 출력
 

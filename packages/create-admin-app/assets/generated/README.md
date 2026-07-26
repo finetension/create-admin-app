@@ -36,7 +36,13 @@ Preview the resolved GitHub and Cloudflare plan without changing anything:
 pnpm cli deploy --dry-run --json
 ```
 
-Run the interactive deployment:
+For coding agents, run the non-interactive deployment and wait for its structured result:
+
+```bash
+pnpm cli deploy --yes --message "chore: deploy {{PROJECT_SLUG}}" --json
+```
+
+For a person operating the terminal directly, use the keyboard-driven journey:
 
 ```bash
 pnpm cli deploy --interactive

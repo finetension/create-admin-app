@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	assertDestinationAvailable,
+	copyTemplate,
 	customizeTemplate,
 	writeGeneratedConfig,
 } from "./files.js";
@@ -85,5 +86,23 @@ describe("template files", () => {
 				"utf8",
 			),
 		).resolves.toContain("Slug: company-admin");
+	});
+
+	it("guides coding agents to the non-interactive deployment path", async () => {
+		const root = await temporaryDirectory();
+		const destination = resolve(root, "generated");
+		await copyTemplate(destination);
+
+		const readme = await readFile(resolve(destination, "README.md"), "utf8");
+		const agents = await readFile(resolve(destination, "AGENTS.md"), "utf8");
+		expect(readme).toContain(
+			'pnpm cli deploy --yes --message "chore: deploy {{PROJECT_SLUG}}" --json',
+		);
+		expect(readme.indexOf("--yes")).toBeLessThan(
+			readme.indexOf("--interactive"),
+		);
+		expect(agents).toContain(
+			"Use `--json` and documented approval flags for agent-run commands.",
+		);
 	});
 });

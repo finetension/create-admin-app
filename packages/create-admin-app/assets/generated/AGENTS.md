@@ -20,6 +20,7 @@ This repository is one company, one internal management system, one Cloudflare d
 - Never rewrite or drop deployed data without a reviewed retention and transformation plan.
 - Treat `config.toml` as the Git-tracked source for non-secret targets. Keep tokens in the OS credential store and GitHub repository Actions secrets.
 - Keep secret-scan exceptions precise, justified, and Git-tracked. Never bypass secret scanning at runtime.
+- Use `--json` and documented approval flags for agent-run commands. Use `--interactive` only when a person explicitly asks to operate the keyboard-driven journey or a structured machine error requires user handoff.
 
 ## Commands
 
