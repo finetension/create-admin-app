@@ -49,7 +49,8 @@ function Navigation({
 					className="justify-start"
 					variant="ghost"
 				>
-					<UsersIcon size={18} />팀 접근
+					<UsersIcon size={18} />
+					구성원 관리
 				</ButtonLink>
 			)}
 		</nav>

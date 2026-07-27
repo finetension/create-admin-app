@@ -123,4 +123,4 @@ Zero Trust organization이 없으면 인터랙티브 CLI가 Dashboard onboarding
 
 개발 환경에는 Access가 없으므로 `bootstrap_owner_email`, 명시적인 `DEV_ACCESS_ROLE`과 `DEV_ACCESS_PUBLIC`을 local binding으로만 주입한다. 기본 역할은 Owner이며 `pnpm cli dev --database local --role owner|admin|member`로 인증 역할을, `pnpm cli dev --database local --public`으로 비인증 접근을 확인한다. 인증 역할은 Bootstrap Owner 이메일을 actor로 사용하고 public 접근은 인증 사용자를 만들지 않는다. 운영 배포에는 개발용 binding을 포함하지 않고 개발용 역할 header를 허용하지 않는다.
 
-Owner 팀 관리 화면은 local D1 개발에서 재시작 시 사라지는 메모리 구성원으로 UX와 guard를 시뮬레이션한다. 이 상태는 파일이나 D1에 저장하지 않고 Cloudflare를 변경하지도 않는다. 운영 Worker에서만 실제 Access 그룹과 account-wide per-user revoke를 호출한다.
+Owner 구성원 관리 화면은 local D1 개발에서 재시작 시 사라지는 메모리 구성원으로 UX와 guard를 시뮬레이션한다. 이 상태는 파일이나 D1에 저장하지 않고 Cloudflare를 변경하지도 않는다. 운영 Worker에서만 실제 Access 그룹과 account-wide per-user revoke를 호출한다.

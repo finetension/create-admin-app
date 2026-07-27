@@ -62,7 +62,7 @@ function MemberCard({
 						<Typography.Paragraph color="muted" size="xs">
 							{member.bootstrap
 								? "초기 소유자 · 제거하거나 강등할 수 없음"
-								: "Cloudflare Access 멤버"}
+								: "Cloudflare Access 구성원"}
 						</Typography.Paragraph>
 					</div>
 				</div>
@@ -98,7 +98,7 @@ function MemberCard({
 								<AlertDialog.Dialog>
 									<AlertDialog.Header>
 										<AlertDialog.Heading>
-											멤버를 제거할까요?
+											구성원을 제거할까요?
 										</AlertDialog.Heading>
 									</AlertDialog.Header>
 									<AlertDialog.Body>
@@ -156,7 +156,7 @@ export function AccessMemberManager() {
 	});
 
 	if (members.isLoading) {
-		return <LoadingState label="Access 멤버를 불러오는 중" />;
+		return <LoadingState label="Access 구성원을 불러오는 중" />;
 	}
 	if (members.isError || !members.data) {
 		return <ErrorState message={errorMessage(members.error)} />;
@@ -166,7 +166,7 @@ export function AccessMemberManager() {
 		<div className="grid gap-6">
 			<Card>
 				<Card.Header>
-					<Card.Title>멤버 추가</Card.Title>
+					<Card.Title>구성원 추가</Card.Title>
 					<Card.Description>
 						이메일과 고정 역할을 선택합니다. 운영에서는 Cloudflare Access 정책에
 						즉시 반영됩니다.
@@ -217,7 +217,7 @@ export function AccessMemberManager() {
 			{mutation.isError && (
 				<Alert status="danger">
 					<Alert.Content>
-						<Alert.Title>멤버 변경 실패</Alert.Title>
+						<Alert.Title>구성원 변경 실패</Alert.Title>
 						<Alert.Description>
 							{errorMessage(mutation.error)}
 						</Alert.Description>
@@ -225,11 +225,11 @@ export function AccessMemberManager() {
 				</Alert>
 			)}
 
-			<section className="grid gap-3" aria-label="Access 멤버">
+			<section className="grid gap-3" aria-label="Access 구성원">
 				{members.data.members.length === 0 ? (
 					<QueryEmptyState
-						title="멤버가 없습니다"
-						description="첫 멤버를 추가하세요."
+						title="구성원이 없습니다"
+						description="첫 구성원을 추가하세요."
 					/>
 				) : (
 					members.data.members.map((member) => (
