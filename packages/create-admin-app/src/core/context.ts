@@ -1,7 +1,7 @@
 export interface CreateOptions {
 	directory?: string;
 	name?: string;
-	emails?: string;
+	ownerEmail?: string;
 	public: boolean;
 	skipInstall: boolean;
 	deploy: boolean;
@@ -20,7 +20,7 @@ export interface CreateContext {
 		staging: string;
 		packageName: string;
 		displayName: string;
-		allowedEmails: string[];
+		bootstrapOwnerEmail: string;
 	};
 	deploymentResult?: unknown;
 }

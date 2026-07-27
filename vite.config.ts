@@ -23,7 +23,7 @@ function createDevelopmentWranglerConfig(): string {
 	const userConfig = {
 		name: projectConfig.project.name,
 		serviceName: projectConfig.project.slug,
-		allowedEmails: projectConfig.project.allowed_emails,
+		bootstrapOwnerEmail: projectConfig.access.bootstrap_owner_email,
 	};
 
 	const baseConfig = parseJsonc(
@@ -65,7 +65,9 @@ function createDevelopmentWranglerConfig(): string {
 		vars: {
 			...baseConfig.vars,
 			APP_NAME: userConfig.name,
-			DEV_ALLOWED_EMAILS: JSON.stringify(userConfig.allowedEmails),
+			DEV_USER_EMAIL: userConfig.bootstrapOwnerEmail,
+			DEV_ACCESS_ROLE: process.env.PLATFORM_ACCESS_ROLE ?? "owner",
+			ACCESS_BOOTSTRAP_OWNER_EMAIL: userConfig.bootstrapOwnerEmail,
 		},
 	};
 	mkdirSync(dirname(generatedPath), { recursive: true });

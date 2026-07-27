@@ -7,7 +7,7 @@
 - One repository, company, deployment, and canonical D1 database form one system.
 - Development uses local D1 before first deployment and the remote canonical D1 afterwards.
 - Tests use an ephemeral local D1.
-- Production D1 migration, Worker deployment, Access mutation, and infrastructure destruction run only in guarded GitHub Actions.
+- Production D1 migration, Worker deployment, Access infrastructure mutation, and infrastructure destruction run only in guarded GitHub Actions. Audited Owner membership changes are the narrow runtime exception.
 - `config.toml` is the Git-tracked source for non-secret targets.
 - Cloudflare is the source of truth for live resource existence.
 
@@ -15,7 +15,8 @@
 
 `config.toml` contains:
 
-- `[project]`: display name, slug, and Access allow-list emails;
+- `[project]`: display name and slug;
+- `[access]`: the protected bootstrap Owner email;
 - `[github]`: owner, repository, and visibility after connection;
 - `[cloudflare]`: account ID and either `workers.dev` or custom-domain route.
 
@@ -63,7 +64,7 @@ Private GitHub visibility and `workers.dev` are the defaults. A project without 
 
 The local command may update files, commit, create or converge the GitHub repository, set the repository Actions secret, push `main`, request the Application Deploy workflow, wait for completion, and fast-forward the lifecycle commit. It does not mutate Cloudflare production resources.
 
-The Application Deploy workflow runs `pnpm check` in a credential-free validation job. Only after that job passes does its mutation job validate the Actions/main capability, apply append-only migrations, converge Worker, One-time PIN, Access application and exact email policy, verify that the public endpoint is Access-protected, and commit the deployed lifecycle state.
+The Application Deploy workflow runs `pnpm check` in a credential-free validation job. Only after that job passes does its mutation job validate the Actions/main capability, apply append-only migrations, converge Worker, One-time PIN, role groups and path-specific Access applications, copy the same repository token into the Worker `ACCESS_MANAGEMENT_TOKEN` secret binding, verify the private gate and public health path, and commit the deployed lifecycle state. The Public application bypasses only data-free `/assets/*` build output and the explicit `/public/*` and `/api/public/*` paths, so role-specific HTML and APIs remain protected while a protected page can load its JS and CSS without crossing Access application sessions. Because the Access API rejects an empty group `include`, an empty role group contains one reserved, non-login `example.com` placeholder email. Deploy and the Owner API normalize this rule and exclude it from member lists, role resolution, and status counts.
 
 If the Cloudflare account has no Zero Trust organization, interactive deploy opens onboarding and verifies it after completion. Machine mode fails with an actionable setup URL.
 
@@ -86,7 +87,7 @@ pnpm cli status --strict
 pnpm cli logs
 ```
 
-These commands do not mutate production. Status checks Worker, D1, Access, route, and lifecycle drift. Status JSON omits redirect query strings and fragments and replaces the opaque Cloudflare Access challenge path segment with `[redacted]`. Logs remain in the current terminal and are not uploaded as artifacts. Machine logs reassemble one complete Worker event into each NDJSON record and count events rather than Wrangler output lines.
+These commands do not mutate production. Status checks Worker and its runtime secret, D1, role groups, path applications, policies, bootstrap Owner, unique membership, route, and lifecycle drift without printing member emails. Status JSON omits redirect query strings and fragments and replaces the opaque Cloudflare Access challenge path segment with `[redacted]`. Logs remain in the current terminal and are not uploaded as artifacts.
 
 ## Destruction
 
@@ -94,7 +95,7 @@ These commands do not mutate production. Status checks Worker, D1, Access, route
 pnpm cli destroy
 ```
 
-The command requests the guarded Application Destroy workflow. It deletes Access and Worker while preserving D1 by default. Add `--include-data` only when irreversible D1 deletion is intended. A successful workflow commits the `destroyed` lifecycle state, and the local command fast-forwards that commit before reporting complete success. Machine execution requires:
+The command requests the guarded Application Destroy workflow. It deletes path-specific Access applications and Worker while preserving D1 and role groups by default. Add `--include-data` only when irreversible D1 and Access membership deletion is intended. A successful workflow commits the `destroyed` lifecycle state, and the local command fast-forwards that commit before reporting complete success. Machine execution requires:
 
 ```bash
 pnpm cli destroy --yes --confirm <project-slug>

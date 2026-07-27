@@ -12,11 +12,11 @@ This repository is one company, one internal management system, one Cloudflare d
 ## Working rules
 
 - Ask the user to define the real company problem in the product PRD before inventing business modules.
-- Do not add tenancy, workspaces, roles, generic records, custom-field engines, or runtime module builders without an explicit product decision.
-- Cloudflare Access `allowedEmails` is the authorization boundary. Allowed users have equal application permissions; identity exists for audit only.
+- Do not add tenancy, workspaces, custom roles, resource-level permissions, generic records, custom-field engines, or runtime module builders without an explicit product decision.
+- Cloudflare Access groups and path applications are the authorization boundary for Owner, Admin, User, and explicit Public routes. D1 stores audit actors and changes, not role state.
 - Add business capabilities as explicit FSD slices, contracts, Worker routes, tests, and D1 migrations.
 - Web product layers import UI only through `src/web/shared/ui`. Prefer HeroUI defaults and composition; use Tailwind utilities for layout only.
-- Remote D1 mutation, Worker deployment, Access changes, and infrastructure destruction run only in guarded GitHub Actions.
+- Remote D1 mutation, Worker deployment, Access infrastructure changes, and infrastructure destruction run only in guarded GitHub Actions. The audited Owner API may change only project Access group membership and revoke user sessions at runtime.
 - Never rewrite or drop deployed data without a reviewed retention and transformation plan.
 - Treat `config.toml` as the Git-tracked source for non-secret targets. Keep tokens in the OS credential store and GitHub repository Actions secrets.
 - Keep secret-scan exceptions precise, justified, and Git-tracked. Never bypass secret scanning at runtime.

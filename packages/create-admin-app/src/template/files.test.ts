@@ -47,12 +47,14 @@ describe("template files", () => {
 		await writeGeneratedConfig(destination, {
 			name: "Company Admin",
 			slug: "company-admin",
-			allowedEmails: ["owner@example.com"],
+			bootstrapOwnerEmail: "owner@example.com",
 			isPublic: true,
 		});
 		const config = await readFile(resolve(destination, "config.toml"), "utf8");
 		expect(config).toContain("[project]");
 		expect(config).toContain('slug = "company-admin"');
+		expect(config).toContain("[access]");
+		expect(config).toContain('bootstrap_owner_email = "owner@example.com"');
 		expect(config).toContain("[github]");
 		expect(config).toContain('visibility = "public"');
 	});

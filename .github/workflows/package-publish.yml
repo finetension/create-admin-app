@@ -214,7 +214,7 @@ jobs:
             create "@finetension/admin-app@$RELEASE_VERSION" -- \
             "$generated_project" \
             --name "Release Smoke" \
-            --emails "release-smoke@example.com" \
+            --owner-email "release-smoke@example.com" \
             --json
           node -e '
             const packageJson = require(process.argv[1]);

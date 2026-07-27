@@ -6,13 +6,14 @@ import {
 } from "../template/files.js";
 
 export async function scaffoldProject(context: CreateContext): Promise<void> {
-	const { staging, displayName, packageName, allowedEmails } = context.project;
+	const { staging, displayName, packageName, bootstrapOwnerEmail } =
+		context.project;
 	await copyTemplate(staging);
 	await customizeTemplate(staging, packageName, displayName);
 	await writeGeneratedConfig(staging, {
 		name: displayName,
 		slug: packageName,
-		allowedEmails,
+		bootstrapOwnerEmail,
 		isPublic: context.args.public,
 	});
 }

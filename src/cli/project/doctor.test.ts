@@ -14,8 +14,8 @@ function dependencies(): Partial<DoctorDependencies> {
 			project: {
 				name: "My Company",
 				slug: "my-company",
-				allowed_emails: ["owner@example.com"],
 			},
+			access: { bootstrap_owner_email: "owner@example.com" },
 		})),
 		loadLifecycle: vi.fn(async () => ({
 			schemaVersion: 1 as const,

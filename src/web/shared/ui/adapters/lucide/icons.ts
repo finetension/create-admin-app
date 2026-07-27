@@ -9,4 +9,7 @@ export {
 	LayoutDashboard as LayoutDashboardIcon,
 	Menu as MenuIcon,
 	ShieldCheck as ShieldCheckIcon,
+	Trash2 as TrashIcon,
+	UserPlus as UserPlusIcon,
+	Users as UsersIcon,
 } from "lucide-react";

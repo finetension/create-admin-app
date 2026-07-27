@@ -1,7 +1,7 @@
 # Create Admin App Developer Experience
 
 - 상태: 목표 사용자 여정과 구현 계약 확정
-- 최종 수정: 2026-07-26
+- 최종 수정: 2026-07-27
 - 범위: 프로젝트 생성부터 에이전트 기반 개발, 원격 연결, 첫 배포와 일상 운영까지
 
 ## 1. 문서 역할
@@ -53,7 +53,9 @@ pnpm cli help --all --json
 [project]
 name = "My Company"
 slug = "my-company"
-allowed_emails = ["owner@example.com"]
+
+[access]
+bootstrap_owner_email = "owner@example.com"
 
 [github]
 owner = "finetension"
@@ -65,7 +67,7 @@ account_id = "00000000000000000000000000000000"
 workers_dev = true
 ```
 
-GitHub와 Cloudflare가 아직 연결되지 않은 로컬 프로젝트는 기본적으로 `[project]`만 가진다. 생성할 때 `--public`을 명시하면 연결 전 `[github]`에는 `visibility = "public"`만 기록한다. 첫 배포에서 확정한 나머지 대상은 같은 파일에 기록하고 검증·커밋한다. D1 ID, Access AUD, API 응답과 단계별 진행 상태는 기록하지 않는다.
+GitHub와 Cloudflare가 아직 연결되지 않은 로컬 프로젝트는 기본적으로 `[project]`와 `[access]`를 가진다. 생성할 때 `--public`을 명시하면 연결 전 `[github]`에는 `visibility = "public"`만 기록한다. 첫 배포에서 확정한 나머지 대상은 같은 파일에 기록하고 검증·커밋한다. D1 ID, Access AUD, API 응답과 단계별 진행 상태는 기록하지 않는다.
 
 사람과 에이전트가 `config.toml`을 직접 편집할 수 있다. CLI는 `smol-toml`로 전체 파일을 parse하고 strict schema를 검증한 뒤 정해진 section·key 순서의 canonical TOML로 원자적으로 다시 저장한다. 알 수 없는 section이나 key는 조용히 제거하거나 보존하지 않고 정확한 경로, 허용 key와 수정 예시를 포함한 설정 오류로 실패한다. 기존 주석, 공백과 수동 서식은 보존하지 않으므로 설정의 이유나 장기 설명은 문서에 기록한다.
 
@@ -77,11 +79,13 @@ Cloudflare token은 OS credential store에 계정 단위로 저장한다. GitHub
 
 로컬에서 첫 배포가 성공하면 확정된 GitHub owner와 Cloudflare account를 사용자 config에 원자적으로 저장하고 결과에 변경 사실을 표시한다. 기존 기본값이 있으면 가장 최근에 성공한 선택으로 갱신한다. CI에서는 사용자 config를 만들거나 변경하지 않으며, 이미 연결된 프로젝트에서는 사용자 기본값이 프로젝트 `config.toml`을 덮어쓰지 않는다.
 
-### 운영 변경은 Actions에서
+### 인프라 변경은 Actions에서
 
-로컬 `pnpm cli deploy`는 설정 확인, 로컬 검증, Git commit·push, GitHub repository secret 설정, workflow 실행과 결과 대기만 담당한다. D1 migration, Worker·Access 생성과 변경은 GitHub Actions 안에서만 수행한다.
+로컬 `pnpm cli deploy`는 설정 확인, 로컬 검증, Git commit·push, GitHub repository secret 설정, workflow 실행과 결과 대기만 담당한다. D1 migration, Worker·Access application·policy 생성과 변경은 GitHub Actions 안에서만 수행한다.
 
-Actions-only는 제품 CLI가 지원하고 감사하는 운영 경로이지 Cloudflare token 자체의 보안 경계가 아니다. 같은 account-wide write token이 로컬 OS credential store에도 있으므로 신뢰된 사용자는 Cloudflare API를 직접 호출할 수 있다. CLI는 로컬 mutation 명령을 제공하지 않고 에이전트가 모든 운영 변경을 Actions로 보내도록 강제한다.
+Actions-only는 제품 CLI가 지원하고 감사하는 인프라 경로이지 Cloudflare token 자체의 보안 경계가 아니다. 같은 account-wide write token이 로컬 OS credential store에도 있으므로 신뢰된 사용자는 Cloudflare API를 직접 호출할 수 있다. CLI는 로컬 mutation 명령을 제공하지 않고 에이전트가 모든 인프라 변경을 Actions로 보내도록 강제한다.
+
+런타임 역할 변경은 좁은 예외다. Owner 전용 API만 서버에 고정된 프로젝트 Access 그룹의 구성원을 변경하고 사용자 세션을 revoke할 수 있으며, 매 변경을 D1에 기록한다. Application Deploy는 기존 repository secret의 값을 Worker의 `ACCESS_MANAGEMENT_TOKEN` secret으로 주입한다. Worker 코드에서는 이 별도 binding 이름만 사용해 이후 제한 토큰으로 교체할 수 있게 한다.
 
 ### 재실행 가능
 
@@ -117,9 +121,9 @@ pnpm build
 프로젝트 초기 연결을 위한 별도 `setup`이나 `init` 명령은 공개하지 않는다. 첫 `deploy`가 필요한 GitHub·Cloudflare 연결을 함께 처리한다.
 저빈도 인프라 작업을 위한 포괄적인 `infra` 그룹도 두지 않는다. 운영 리소스 철거는 의도가 분명한 최상위 `destroy`로 노출하고, 실제 Cloudflare 삭제는 guarded GitHub Actions에서만 수행한다.
 
-`destroy`의 기본 계획은 Worker와 Access를 제거하고 D1을 보존한다. 인터랙티브 모드에서는 데이터 보존을 기본 선택으로 표시하고, 비인터랙티브 모드도 `--include-data`가 없으면 D1을 보존한다. `--include-data`를 명시하면 D1도 복구 보장 없이 제거한다.
+`destroy`의 기본 계획은 Worker와 경로별 Access application·policy를 제거하고 D1과 역할 그룹 구성원을 보존한다. 인터랙티브 모드에서는 데이터와 역할 구성원 보존을 기본 선택으로 표시하고, 비인터랙티브 모드도 `--include-data`가 없으면 둘을 보존한다. `--include-data`를 명시하면 D1과 역할 그룹 구성원도 복구 보장 없이 제거한다.
 
-`destroy`는 최종 계획을 표시한 뒤 인터랙티브 모드에서 project slug를 직접 입력받는다. 비인터랙티브 모드는 `--yes --confirm <slug>`를 모두 요구하고 값이 `config.toml`의 project slug와 정확히 일치해야 한다. D1까지 제거하려면 여기에 `--include-data`를 별도로 지정한다. 확인이 없거나 일치하지 않으면 안전 정책 위반 종료 코드 `5`로 끝나며 Application Destroy workflow를 요청하지 않는다.
+`destroy`는 최종 계획을 표시한 뒤 인터랙티브 모드에서 project slug를 직접 입력받는다. 비인터랙티브 모드는 `--yes --confirm <slug>`를 모두 요구하고 값이 `config.toml`의 project slug와 정확히 일치해야 한다. D1과 역할 그룹까지 제거하려면 여기에 `--include-data`를 별도로 지정한다. 확인이 없거나 일치하지 않으면 안전 정책 위반 종료 코드 `5`로 끝나며 Application Destroy workflow를 요청하지 않는다.
 
 성공한 Application Destroy workflow는 lifecycle을 `destroyed`로 커밋한다. 로컬 `destroy`는 workflow 완료 뒤 해당 commit을 `main`에 fast-forward해야 전체 성공을 보고한다. 철거 후 `status --strict`는 Worker와 Access가 없고 D1이 보존되었거나 삭제된 상태를 모두 정상으로 판단한다. 자동 `dev`와 persistent local D1 명령은 local database로 되돌아가지 않고 `deploy`를 요구한다.
 
@@ -154,7 +158,18 @@ pnpm cli auth logout
 machine mode의 `logs`는 단일 JSON document 대신 NDJSON을 사용한다. stdout에 각 log event를 한 줄씩 즉시 출력하고 마지막 줄에는 수신 개수, 실제 실행 시간과 종료 이유를 가진 `summary` event를 출력한다. 진행 메시지는 계속 stderr로 분리하며 각 줄은 독립적으로 parse 가능한 JSON이어야 한다.
 Wrangler가 하나의 event를 여러 줄 JSON으로 출력하더라도 CLI는 완전한 event 하나를 단일 NDJSON `log` record로 재조립한다. `summary.received`는 Wrangler 출력 줄 수가 아니라 완전하게 수신한 Worker event 수다.
 
-첫 배포 이후 `dev`는 Access로 보호된 Worker를 통해 remote D1 binding에 연결한다. 유효한 Access 로그인이 없고 TTY라면 Wrangler의 브라우저 로그인을 시작한다. machine mode에서는 브라우저를 열지 않고 `access_login_required` 설정 오류와 `pnpm cli dev --interactive` 실행 hint를 반환한다. 공통 기반은 로컬 remote development를 위한 Access service token을 만들거나 저장하지 않는다.
+첫 배포 이후 `dev`는 로컬 Vite Worker에 canonical remote D1 binding을 연결한다. Cloudflare 계정 인증이 없고 TTY라면 Wrangler의 브라우저 로그인을 시작한다. machine mode에서는 브라우저를 열지 않고 `access_login_required` 설정 오류와 `pnpm cli dev --interactive` 실행 hint를 반환한다. 이 경로는 배포된 Worker나 실제 Access 역할 세션을 거치지 않으며 로컬 actor는 기본 Owner로 고정된다. 공통 기반은 remote development용 별도 service token을 만들거나 저장하지 않는다.
+
+역할별 화면과 API를 확인할 때는 local database를 명시하고 역할을 선택한다.
+
+```bash
+pnpm cli dev --database local --role owner
+pnpm cli dev --database local --role admin
+pnpm cli dev --database local --role user
+pnpm cli dev --database local --role public
+```
+
+`--role`은 local database에서만 허용한다. `owner`, `admin`, `user`는 Bootstrap Owner 이메일을 개발 actor로 사용하고 `public`은 인증 정보 없이 요청한다. 자동 remote 개발이나 명시적인 `--database remote`와 함께 사용하면 운영 역할을 가장하지 않고 사용법 오류로 실패한다.
 
 ### Actions 전용 내부 명령
 
@@ -229,7 +244,7 @@ TTY에서 실행하고 `--json`을 지정하지 않으면 `@clack/prompts` 기�
 
 ```bash
 pnpm create @finetension/admin-app my-company
-pnpm create @finetension/admin-app -- my-company --name "My Company" --emails owner@example.com --json
+pnpm create @finetension/admin-app -- my-company --name "My Company" --owner-email owner@example.com --json
 pnpm create @finetension/admin-app -- my-company --public --deploy --yes --message "feat: deploy my-company" --json
 ```
 
@@ -244,7 +259,7 @@ pnpm create @finetension/admin-app -- my-company --public --deploy --yes --messa
 | --- | --- | --- |
 | `<directory>` | project slug와 대상 디렉터리 | 필수 |
 | `--name <name>` | 표시 이름 | 생략하면 slug에서 생성 |
-| `--emails <email,...>` | Access 허용 이메일 | 필수 |
+| `--owner-email <email>` | 제거할 수 없는 초기 Owner 이메일 | 필수 |
 | `--public` | 이후 GitHub visibility | 생략하면 private |
 | `--skip-install` | 설치와 검증 생략 | 명시한 경우에만 |
 | `--deploy` | 생성 뒤 project CLI 실행 | 명시한 경우에만 |
@@ -252,7 +267,7 @@ pnpm create @finetension/admin-app -- my-company --public --deploy --yes --messa
 | `--yes` | deploy 외부 변경 승인 | `--deploy`와 함께 필수 |
 | `--json` | machine mode와 JSON 출력 | 에이전트 실행의 기준 |
 
-`allowed_emails`는 Cloudflare Access의 운영 인가 경계이므로 에이전트가 Git author, 서비스 이름, 도메인 또는 예시 값으로 추론하면 안 된다. machine mode에서 `--emails`가 없으면 생성기는 `missing_required_input` 오류와 `field`, `option`, `may_infer: false`, `required_action: "ask_user"`를 반환하고, 다른 명령이나 소스 탐색 없이 실제 로그인할 이메일을 사용자에게 물어본 뒤 같은 명령을 재실행하도록 안내한다.
+`bootstrap_owner_email`은 최초 운영 복구 경계이므로 에이전트가 Git author, 서비스 이름, 도메인 또는 예시 값으로 추론하면 안 된다. machine mode에서 `--owner-email`이 없으면 생성기는 `missing_required_input` 오류와 `field`, `option`, `may_infer: false`, `required_action: "ask_user"`를 반환하고, 다른 명령이나 소스 탐색 없이 실제 Owner 이메일을 사용자에게 물어본 뒤 같은 명령을 재실행하도록 안내한다.
 
 ### 시작 전 확인
 
@@ -261,7 +276,7 @@ pnpm create @finetension/admin-app -- my-company --public --deploy --yes --messa
 ### 생성 단계
 
 1. 대상 경로와 같은 파일 시스템의 임시 디렉터리에 템플릿 생성
-2. `[project]`가 채워진 `config.toml` 작성. `--public`이면 연결 전에도 `[github].visibility = "public"`을 기록
+2. `[project]`와 `[access].bootstrap_owner_email`이 채워진 `config.toml` 작성. `--public`이면 연결 전에도 `[github].visibility = "public"`을 기록
 3. 생성 package에 포함된 독립 lockfile로 `pnpm install --frozen-lockfile`
 4. `pnpm check`
 5. `main` Git 저장소와 첫 commit 생성
@@ -333,14 +348,15 @@ Cloudflare token이 없고 인터랙티브라면 Account API Tokens 페이지를
 - GitHub owner, repository와 visibility
 - Cloudflare account
 - `workers.dev` 또는 custom hostname
-- 허용 이메일
+- Bootstrap Owner 이메일
+- Owner·Admin·User 그룹과 Base·Admin·Owner·Public 경로 정책
 - 수정·commit할 파일
 - 변경이 있을 때 사용할 commit message
-- 생성하거나 갱신할 GitHub repository secret
+- 생성하거나 갱신할 GitHub repository secret과 Worker `ACCESS_MANAGEMENT_TOKEN` secret 주입
 - Zero Trust organization 상태와 OTP 추가 여부
 - 실행할 workflow
 
-public 저장소이면 source, `config.toml`의 허용 이메일, Actions run과 안전하게 제한된 배포 log가 공개된다는 사실도 표시한다. `workers.dev`를 선택하면 Cloudflare가 business-critical production에는 custom domain이나 route를 권장한다는 점도 안내한다. TTY에서는 한 번 확인받고 비인터랙티브에서는 `--yes`를 요구한다. `--dry-run`은 같은 계획을 출력하고 mutation 없이 종료한다.
+public 저장소이면 source, `config.toml`의 Bootstrap Owner 이메일, Actions run과 안전하게 제한된 배포 log가 공개된다는 사실도 표시한다. 동적으로 추가한 팀원 이메일은 Git이나 plan에 출력하지 않는다. `workers.dev`를 선택하면 Cloudflare가 business-critical production에는 custom domain이나 route를 권장한다는 점도 안내한다. TTY에서는 한 번 확인받고 비인터랙티브에서는 `--yes`를 요구한다. `--dry-run`은 같은 계획을 출력하고 mutation 없이 종료한다.
 
 ### 실행
 
@@ -398,7 +414,7 @@ lifecycle이 `deployed` 또는 `destroyed`이면 Cloudflare account 변경은 �
 명시적 option → 환경변수 → 사용자 전역 기본값 → 인터랙티브 입력
 ```
 
-지원 환경변수는 `CREATE_ADMIN_APP_GITHUB_OWNER`와 `CREATE_ADMIN_APP_CLOUDFLARE_ACCOUNT_ID`다. 프로젝트 이름, 허용 이메일, repository, visibility와 route는 생성 option 또는 프로젝트 `config.toml`로 명시한다.
+지원 환경변수는 `CREATE_ADMIN_APP_GITHUB_OWNER`와 `CREATE_ADMIN_APP_CLOUDFLARE_ACCOUNT_ID`다. 프로젝트 이름, Bootstrap Owner, repository, visibility와 route는 생성 option 또는 프로젝트 `config.toml`로 명시한다.
 
 자격 증명:
 
@@ -410,11 +426,11 @@ token을 shell history에 남기는 option은 제공하지 않는다.
 
 ## 9. 배포 이후
 
-Application Deploy workflow는 Cloudflare secret을 사용하지 않는 validation job에서 `pnpm install --frozen-lockfile`과 `pnpm check`를 다시 수행한다. Cloudflare mutation job은 이 job을 `needs`로 요구하며, 성공한 뒤에만 D1 migration, Worker 배포, 기존 IdP를 보존한 OTP 보장, Access application·email policy 배포, smoke check와 lifecycle commit을 수행한다. 별도 Application CI가 같은 push에서 병렬로 실행되더라도 Deploy 자체의 validation이 운영 반영을 차단한다. smoke check는 Cloudflare API에서 Worker deployment가 active인지 확인하고 인증되지 않은 production URL이 앱 응답 대신 Access 로그인 또는 거부 응답을 반환하는지 검사한다. 공통 기반은 CI용 Access service token이나 인증된 운영 데이터 요청을 사용하지 않는다.
+Application Deploy workflow는 Cloudflare secret을 사용하지 않는 validation job에서 `pnpm install --frozen-lockfile`과 `pnpm check`를 다시 수행한다. Cloudflare mutation job은 이 job을 `needs`로 요구하며, 성공한 뒤에만 D1 migration, Worker 배포, 기존 IdP를 보존한 OTP 보장, 역할 그룹과 경로별 Access application·policy 배포, Worker secret 주입, smoke check와 lifecycle commit을 수행한다. 별도 Application CI가 같은 push에서 병렬로 실행되더라도 Deploy 자체의 validation이 운영 반영을 차단한다. smoke check는 Cloudflare API에서 Worker deployment가 active인지 확인하고 인증되지 않은 private production URL이 Access 로그인 또는 거부 응답을 반환하며 public health 경로는 접근 가능한지 검사한다. 공통 기반은 CI용 Access service token이나 인증된 운영 데이터 요청을 사용하지 않는다.
 
-첫 배포 뒤 local branch가 workflow의 lifecycle commit까지 동기화되면 `pnpm cli dev`는 기준 remote D1을 사용한다. 첫 remote 연결에 Access 로그인이 필요하면 TTY에서 브라우저 인증을 수행하고 machine mode에서는 구조화 오류로 사용자 handoff를 요청한다. 운영 migration과 destroy는 계속 Actions capability 안에서만 실행한다.
+첫 배포 뒤 local branch가 workflow의 lifecycle commit까지 동기화되면 `pnpm cli dev`는 기준 remote D1을 사용한다. 첫 remote 연결에 Cloudflare 계정 로그인이 필요하면 TTY에서 브라우저 인증을 수행하고 machine mode에서는 구조화 오류로 사용자 handoff를 요청한다. 운영 migration과 destroy는 계속 Actions capability 안에서만 실행한다.
 
-철거 뒤 local branch가 `destroyed` lifecycle commit까지 동기화되면 자동 `dev`는 중단된다. 같은 프로젝트를 다시 운영하려면 `pnpm cli deploy`를 실행하며, 성공한 Application Deploy workflow가 기존 D1을 재사용하거나 새 D1을 만든 뒤 lifecycle을 다시 `deployed`로 커밋한다.
+철거 뒤 local branch가 `destroyed` lifecycle commit까지 동기화되면 자동 `dev`는 중단된다. 같은 프로젝트를 다시 운영하려면 `pnpm cli deploy`를 실행하며, 성공한 Application Deploy workflow가 기존 D1과 보존한 역할 그룹을 재사용한 뒤 lifecycle을 다시 `deployed`로 커밋한다.
 
 ## 10. 완료 조건
 
@@ -424,8 +440,8 @@ Application Deploy workflow는 Cloudflare secret을 사용하지 않는 validati
 - 의존성 설치, `pnpm check`와 첫 commit이 완료된다.
 - 중간 실패 뒤 불완전한 대상 디렉터리가 남지 않는다.
 - 생성 결과는 모노레포나 전역 CLI에 의존하지 않는다.
-- machine mode는 `--emails`를 포함한 문서화된 option만으로 프롬프트 없이 완료된다.
-- machine mode에서 빠진 Access 이메일은 추론 금지 필수 입력으로 구조화되고 에이전트가 실제 사용자에게 질문할 수 있다.
+- machine mode는 `--owner-email`을 포함한 문서화된 option만으로 프롬프트 없이 완료된다.
+- machine mode에서 빠진 Bootstrap Owner 이메일은 추론 금지 필수 입력으로 구조화되고 에이전트가 실제 사용자에게 질문할 수 있다.
 - 같은 create package version은 독립 template lockfile과 frozen install로 같은 dependency graph를 만든다.
 - 생성된 문서와 초기 UI에는 Create Admin App monorepo 또는 Beestory 전용 요구사항이 없다.
 
@@ -436,7 +452,8 @@ Application Deploy workflow는 Cloudflare secret을 사용하지 않는 validati
 - Zero Trust organization이 없으면 설정 URL로 중단하고 온보딩 뒤 같은 명령으로 재개된다.
 - `workers.dev`가 기본이지만 인터랙티브에서 custom domain을 선택할 수 있다.
 - 같은 명령을 재실행하면 일부 완료된 원격 상태에 수렴한다.
-- Cloudflare mutation은 같은 Application Deploy workflow의 전체 validation 성공 뒤에만 시작한다.
+- 인프라와 D1 mutation은 같은 Application Deploy workflow의 전체 validation 성공 뒤에만 시작한다.
+- 역할 그룹 구성원 변경은 Owner 경로에서만 실행되고 native session revoke와 D1 audit을 남긴다.
 - token이 파일, process argument, stdout이나 Git 기록에 존재하지 않는다.
 - Actions 완료와 local lifecycle fast-forward까지 기다린 뒤 production URL을 출력한다.
 - destroy 완료 뒤 lifecycle이 `destroyed`로 동기화되고, 재배포하면 다시 `deployed`로 수렴한다.

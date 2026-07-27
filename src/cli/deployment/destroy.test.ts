@@ -22,9 +22,22 @@ const inspection: DestroyInspection = {
 		available: true,
 		organization: true,
 		identityProvider: true,
-		application: true,
-		policy: true,
-		appId: "access-app-id",
+		groups: true,
+		applications: true,
+		policies: true,
+		bootstrapOwner: true,
+		uniqueMemberships: true,
+		applicationIds: {
+			base: "base-app-id",
+			admin: "admin-app-id",
+			owner: "owner-app-id",
+			public: "public-app-id",
+		},
+		groupIds: {
+			owner: "owner-group-id",
+			admin: "admin-group-id",
+			user: "user-group-id",
+		},
 	},
 };
 
@@ -33,6 +46,7 @@ function createDependencies() {
 		inspect: vi.fn(async () => inspection),
 		assertCapability: vi.fn(),
 		deleteAccess: vi.fn(async () => {}),
+		deleteGroups: vi.fn(async () => {}),
 		deleteWorker: vi.fn(async () => {}),
 		deleteD1: vi.fn(async () => {}),
 	};
@@ -45,6 +59,7 @@ describe("destroyDeployment", () => {
 		expect(dependencies.deleteAccess).not.toHaveBeenCalled();
 		expect(dependencies.deleteWorker).not.toHaveBeenCalled();
 		expect(dependencies.deleteD1).not.toHaveBeenCalled();
+		expect(dependencies.deleteGroups).not.toHaveBeenCalled();
 	});
 
 	it("keeps D1 by default", async () => {
@@ -58,6 +73,7 @@ describe("destroyDeployment", () => {
 		expect(dependencies.assertCapability).toHaveBeenCalledOnce();
 		expect(dependencies.deleteWorker).toHaveBeenCalledOnce();
 		expect(dependencies.deleteD1).not.toHaveBeenCalled();
+		expect(dependencies.deleteGroups).not.toHaveBeenCalled();
 	});
 
 	it("deletes D1 only with include-data", async () => {
@@ -68,6 +84,7 @@ describe("destroyDeployment", () => {
 			dependencies,
 		);
 		expect(dependencies.deleteD1).toHaveBeenCalledOnce();
+		expect(dependencies.deleteGroups).toHaveBeenCalledOnce();
 	});
 
 	it("requires an exact confirmation", async () => {

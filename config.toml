@@ -1,4 +1,6 @@
 [project]
 name = "Management System"
 slug = "management-system"
-allowed_emails = ["admin@example.com"]
+
+[access]
+bootstrap_owner_email = "admin@example.com"

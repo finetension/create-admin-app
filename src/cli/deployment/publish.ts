@@ -1,6 +1,8 @@
 import { dirname, resolve } from "node:path";
 import { z } from "zod";
 import type { DeploymentConfig } from "../core/config.ts";
+import { resolveActionsCloudflareApiToken } from "../core/credentials.ts";
+import { configurationError } from "../core/error.ts";
 import { readJsonc } from "../core/json.ts";
 import { logger } from "../core/logger.ts";
 import { projectPaths } from "../core/paths.ts";
@@ -54,4 +56,21 @@ export async function publishWorker(
 	await runWrangler(["deploy", "--config", builtConfigPath], {
 		accountId: config.accountId,
 	});
+
+	const accessManagementToken = resolveActionsCloudflareApiToken();
+	if (!accessManagementToken) {
+		throw configurationError(
+			"missing_actions_cloudflare_token",
+			"Worker Access 관리 secret에 주입할 CLOUDFLARE_API_TOKEN이 없습니다.",
+			"GitHub Repository Actions secret CLOUDFLARE_API_TOKEN을 설정하세요.",
+		);
+	}
+	logger.start("Owner 역할 관리용 Worker secret을 동기화합니다");
+	await runWrangler(
+		["secret", "put", "ACCESS_MANAGEMENT_TOKEN", "--config", builtConfigPath],
+		{
+			accountId: config.accountId,
+			input: `${accessManagementToken}\n`,
+		},
+	);
 }

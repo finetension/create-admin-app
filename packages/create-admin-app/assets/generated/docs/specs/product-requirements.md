@@ -25,7 +25,7 @@ Define one end-to-end workflow before adding generic modules.
 ## Out of scope
 
 - Multi-tenancy or workspace switching
-- Roles and granular application permissions
+- Custom roles, resource permissions, or a permission builder beyond fixed Owner, Admin, User, and Public boundaries
 - Generic records, custom fields, or runtime module builders
 - Reimplementing information already handled well by an existing platform
 
@@ -38,6 +38,7 @@ For each source, record ownership, access method, stable identifiers, refresh ti
 - The first workflow can be completed end to end.
 - Business data has an explicit schema, contract, Worker route, and UI slice.
 - Production changes remain reproducible through Git and guarded GitHub Actions.
+- The bootstrap Owner can manage audited Access membership without managing Cloudflare identifiers or tokens.
 - `pnpm check` succeeds.
 
 ## Open questions

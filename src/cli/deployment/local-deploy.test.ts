@@ -4,6 +4,7 @@ import {
 	classifyRemoteMain,
 	isWorkflowIndexingDelay,
 	normalizeGitHubRemote,
+	parseGitStatusFiles,
 } from "./local-deploy.ts";
 
 describe("local deploy target discovery", () => {
@@ -32,6 +33,17 @@ describe("local deploy target discovery", () => {
 		expect(() =>
 			assertSafeCommitPaths(["src/cli/core/credentials.ts"]),
 		).not.toThrow();
+	});
+
+	it("preserves the first path character and both sides of a rename", () => {
+		expect(
+			parseGitStatusFiles(
+				" M docs/handbook.md\0?? .env.production\0R  safe.txt\0old.txt\0",
+			),
+		).toEqual(["docs/handbook.md", ".env.production", "safe.txt", "old.txt"]);
+		expect(() =>
+			assertSafeCommitPaths(parseGitStatusFiles(" M .env.production\0")),
+		).toThrow("민감 파일");
 	});
 
 	it("retries only the transient new-workflow indexing response", () => {

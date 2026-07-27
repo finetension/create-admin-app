@@ -30,10 +30,10 @@ const emailSchema = z
 const projectSectionSchema = z.strictObject({
 	name: displayNameSchema,
 	slug: z.string().regex(slugPattern, "slug 형식이 올바르지 않습니다."),
-	allowed_emails: z
-		.array(emailSchema)
-		.min(1, "allowed_emails에는 최소 한 명의 이메일이 필요합니다.")
-		.transform((emails) => [...new Set(emails)]),
+});
+
+const accessSectionSchema = z.strictObject({
+	bootstrap_owner_email: emailSchema,
 });
 
 const githubSectionSchema = z
@@ -106,6 +106,7 @@ const cloudflareSectionSchema = z
 
 const projectConfigSchema = z.strictObject({
 	project: projectSectionSchema,
+	access: accessSectionSchema,
 	github: githubSectionSchema.optional(),
 	cloudflare: cloudflareSectionSchema.optional(),
 });
@@ -140,7 +141,7 @@ export interface UserConfig {
 	name: string;
 	slug: string;
 	serviceName: string;
-	allowedEmails: string[];
+	bootstrapOwnerEmail: string;
 	domain?: string;
 	subdomain?: string;
 	routing: "custom-domain" | "workers-dev";
@@ -151,11 +152,26 @@ export interface UserConfig {
 
 export interface AccessConfig {
 	sessionDuration: string;
-	applicationName: string;
-	policyName: string;
 	identityProviderName: string;
 	teamName: string;
-	allowedEmails: string[];
+	bootstrapOwnerEmail: string;
+	groupNames: {
+		owner: string;
+		admin: string;
+		user: string;
+	};
+	applicationNames: {
+		base: string;
+		admin: string;
+		owner: string;
+		public: string;
+	};
+	policyNames: {
+		base: string;
+		admin: string;
+		owner: string;
+		public: string;
+	};
 }
 
 export interface DeploymentConfig extends UserConfig {
@@ -185,7 +201,7 @@ export function parseProjectConfig(
 		configError(
 			label,
 			result.error,
-			'[project]\\nname = "My Company"\\nslug = "my-company"\\nallowed_emails = ["owner@example.com"]',
+			'[project]\\nname = "My Company"\\nslug = "my-company"\\n\\n[access]\\nbootstrap_owner_email = "owner@example.com"',
 		);
 	}
 	return result.data;
@@ -249,7 +265,7 @@ export async function loadUserConfig(
 		name: config.project.name,
 		slug: config.project.slug,
 		serviceName: config.project.slug,
-		allowedEmails: config.project.allowed_emails,
+		bootstrapOwnerEmail: config.access.bootstrap_owner_email,
 		...(cloudflare?.domain ? { domain: cloudflare.domain } : {}),
 		...(cloudflare?.subdomain ? { subdomain: cloudflare.subdomain } : {}),
 		routing: cloudflare?.domain ? "custom-domain" : "workers-dev",
@@ -349,6 +365,7 @@ export function createDeploymentConfig(
 	}
 	const teamNameBase =
 		userConfig.serviceName.slice(0, 54).replace(/-+$/, "") || "management";
+	const resourceName = userConfig.name.slice(0, 70).trim() || "Management";
 	return {
 		...userConfig,
 		hostname,
@@ -358,11 +375,26 @@ export function createDeploymentConfig(
 		resourcePrefix: userConfig.serviceName,
 		access: {
 			sessionDuration: "24h",
-			applicationName: userConfig.name,
-			policyName: `Allow ${userConfig.name} team`,
 			identityProviderName: "One-time PIN login",
 			teamName: `${teamNameBase}-${accountId.slice(0, 8)}`,
-			allowedEmails: userConfig.allowedEmails,
+			bootstrapOwnerEmail: userConfig.bootstrapOwnerEmail,
+			groupNames: {
+				owner: `${resourceName} · Owners`,
+				admin: `${resourceName} · Admins`,
+				user: `${resourceName} · Users`,
+			},
+			applicationNames: {
+				base: resourceName,
+				admin: `${resourceName} · Admin`,
+				owner: `${resourceName} · Owner`,
+				public: `${resourceName} · Public`,
+			},
+			policyNames: {
+				base: `Allow ${resourceName} members`,
+				admin: `Allow ${resourceName} admins`,
+				owner: `Allow ${resourceName} owners`,
+				public: `Bypass ${resourceName} public paths`,
+			},
 		},
 	};
 }

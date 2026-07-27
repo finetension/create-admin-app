@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { createViteDevArgs, parsePort, startDevelopmentServer } from "./dev.ts";
+import {
+	createViteDevArgs,
+	parseDevelopmentAccessRole,
+	parsePort,
+	startDevelopmentServer,
+} from "./dev.ts";
 
 describe("development command", () => {
 	it("forwards supported Vite options", () => {
@@ -27,6 +32,14 @@ describe("development command", () => {
 		expect(() => parsePort("0")).toThrow("1부터 65535");
 		expect(() => parsePort("65536")).toThrow("1부터 65535");
 		expect(() => parsePort("vite")).toThrow("1부터 65535");
+	});
+
+	it("validates explicit local roles", () => {
+		expect(parseDevelopmentAccessRole("owner")).toBe("owner");
+		expect(parseDevelopmentAccessRole("public")).toBe("public");
+		expect(() => parseDevelopmentAccessRole("manager")).toThrow(
+			"지원하지 않는 개발 역할",
+		);
 	});
 });
 
@@ -63,6 +76,37 @@ describe("development database lifecycle", () => {
 				env: expect.objectContaining({ PLATFORM_DATABASE_MODE: "local" }),
 			}),
 		);
+	});
+
+	it("passes the selected role to local Vite", async () => {
+		const run = vi.fn(async () => ({ stdout: "", stderr: "", exitCode: 0 }));
+		await startDevelopmentServer(
+			{ migrate: false, database: "local", role: "admin" },
+			{
+				run,
+				resolveMode: async () => ({ mode: "local", reason: "explicit" }),
+			},
+		);
+		expect(run).toHaveBeenCalledWith(
+			["exec", "vite"],
+			expect.objectContaining({
+				env: expect.objectContaining({ PLATFORM_ACCESS_ROLE: "admin" }),
+			}),
+		);
+	});
+
+	it("rejects role simulation with remote D1", async () => {
+		await expect(
+			startDevelopmentServer(
+				{ database: "remote", role: "user" },
+				{
+					machine: () => false,
+					resolveMode: async () => ({ mode: "remote", reason: "explicit" }),
+				},
+			),
+		).rejects.toMatchObject({
+			code: "development_role_requires_local_database",
+		});
 	});
 
 	it("removes local D1 and skips migration in remote mode", async () => {

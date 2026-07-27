@@ -16,15 +16,15 @@ describe("project config", () => {
 				project: {
 					name: "My Company",
 					slug: "my-company",
-					allowed_emails: ["OWNER@example.com", "owner@example.com"],
 				},
+				access: { bootstrap_owner_email: "OWNER@example.com" },
 			}),
 		).toEqual({
 			project: {
 				name: "My Company",
 				slug: "my-company",
-				allowed_emails: ["owner@example.com"],
 			},
+			access: { bootstrap_owner_email: "owner@example.com" },
 		});
 	});
 
@@ -34,9 +34,9 @@ describe("project config", () => {
 				project: {
 					name: "My Company",
 					slug: "my-company",
-					allowed_emails: ["owner@example.com"],
 					workspace_id: "unexpected",
 				},
+				access: { bootstrap_owner_email: "owner@example.com" },
 			}),
 		).toThrow(/workspace_id/);
 	});
@@ -47,8 +47,8 @@ describe("project config", () => {
 				project: {
 					name: "My Company",
 					slug: "my-company",
-					allowed_emails: ["owner@example.com"],
 				},
+				access: { bootstrap_owner_email: "owner@example.com" },
 				github: {
 					owner: "valid-owner",
 					repository: "invalid/repository",
@@ -96,8 +96,8 @@ describe("project config", () => {
 				project: {
 					name: "My Company",
 					slug: "my-company",
-					allowed_emails: ["owner@example.com"],
 				},
+				access: { bootstrap_owner_email: "owner@example.com" },
 				github: { visibility: "public" },
 			},
 			path,
@@ -108,5 +108,6 @@ describe("project config", () => {
 			github: { visibility: "public" },
 		});
 		expect(await readFile(path, "utf8")).toContain("[project]");
+		expect(await readFile(path, "utf8")).toContain("[access]");
 	});
 });

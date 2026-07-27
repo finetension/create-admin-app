@@ -570,6 +570,7 @@ async function resolveTarget(
 	const config = parseProjectConfig(
 		{
 			project: project.project,
+			access: project.access,
 			github: {
 				owner,
 				repository: repositoryName,
@@ -597,12 +598,34 @@ async function resolveTarget(
 	};
 }
 
+export function parseGitStatusFiles(output: string): string[] {
+	const entries = output.split("\0");
+	const files: string[] = [];
+	for (let index = 0; index < entries.length; index += 1) {
+		const entry = entries[index];
+		if (!entry || entry.length < 4) continue;
+		const status = entry.slice(0, 2);
+		files.push(entry.slice(3));
+		if (status.includes("R") || status.includes("C")) {
+			const source = entries[index + 1];
+			if (source) files.push(source);
+			index += 1;
+		}
+	}
+	return [...new Set(files)];
+}
+
 async function gitStatusFiles(): Promise<string[]> {
-	const output = await readGitValue(["status", "--porcelain"]);
-	return output
-		.split("\n")
-		.filter(Boolean)
-		.map((line) => line.slice(3));
+	const result = await runCommand(
+		"git",
+		["status", "--porcelain=v1", "-z", "--untracked-files=all"],
+		{
+			capture: true,
+			allowFailure: true,
+			ci: false,
+		},
+	);
+	return result.exitCode === 0 ? parseGitStatusFiles(result.stdout) : [];
 }
 
 export function assertSafeCommitPaths(paths: string[]): void {
@@ -731,7 +754,7 @@ export async function runLocalDeploy(
 			zero_trust: target.zeroTrust.exists ? "ready" : "missing",
 			one_time_pin: target.zeroTrust.oneTimePin ? "ready" : "will-create",
 		},
-		allowed_emails: target.config.project.allowed_emails,
+		bootstrap_owner_email: target.config.access.bootstrap_owner_email,
 		files: [
 			...new Set([...existingFiles, ...(configChanged ? ["config.toml"] : [])]),
 		],
@@ -870,6 +893,7 @@ export async function runLocalDeploy(
 	)
 		.split(/\s+/, 1)
 		.at(0);
+	let remoteAction = classifyRemoteMain(headSha, remoteHead, false, false);
 	if (remoteHead && remoteHead !== headSha) {
 		await runCommand("git", ["fetch", "origin", "main"], { ci: false });
 		const ancestor = await runCommand(
@@ -882,7 +906,7 @@ export async function runLocalDeploy(
 			["merge-base", "--is-ancestor", "origin/main", "HEAD"],
 			{ capture: true, allowFailure: true, ci: false },
 		);
-		const remoteAction = classifyRemoteMain(
+		remoteAction = classifyRemoteMain(
 			headSha,
 			remoteHead,
 			ancestor.exitCode === 0,
@@ -910,10 +934,10 @@ export async function runLocalDeploy(
 			}
 			headSha = await currentHead();
 			remoteHead = headSha;
+			remoteAction = "dispatch";
 		}
 	}
 	let excludedRunIds = new Set<number>();
-	const remoteAction = classifyRemoteMain(headSha, remoteHead, true, true);
 	if (remoteAction === "push") {
 		await runCommand("git", ["push", "-u", "origin", "main"], { ci: false });
 	} else {

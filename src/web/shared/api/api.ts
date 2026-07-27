@@ -1,4 +1,9 @@
-import type { ApiErrorBody, CurrentUser } from "../../../shared/contracts";
+import type {
+	AccessMembers,
+	ApiErrorBody,
+	CurrentUser,
+	UpdateAccessMemberInput,
+} from "../../../shared/contracts";
 
 export class ApiError extends Error {
 	constructor(
@@ -35,5 +40,25 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-	me: () => request<CurrentUser>("/me"),
+	me: () => {
+		const pathname = globalThis.location?.pathname ?? "/";
+		const boundary = pathname.startsWith("/owner/")
+			? "/owner"
+			: pathname.startsWith("/admin/")
+				? "/admin"
+				: "";
+		return request<CurrentUser>(`${boundary}/me`);
+	},
+	accessMembers: {
+		list: () => request<AccessMembers>("/owner/members"),
+		setRole: (email: string, input: UpdateAccessMemberInput) =>
+			request<AccessMembers>(`/owner/members/${encodeURIComponent(email)}`, {
+				method: "PUT",
+				body: JSON.stringify(input),
+			}),
+		remove: (email: string) =>
+			request<AccessMembers>(`/owner/members/${encodeURIComponent(email)}`, {
+				method: "DELETE",
+			}),
+	},
 };

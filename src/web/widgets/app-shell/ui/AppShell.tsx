@@ -12,9 +12,16 @@ import {
 	MenuIcon,
 	Surface,
 	Typography,
+	UsersIcon,
 } from "../../../shared/ui";
 
-function Navigation({ onNavigate }: { onNavigate?: () => void }) {
+function Navigation({
+	user,
+	onNavigate,
+}: {
+	user: CurrentUser;
+	onNavigate?: () => void;
+}) {
 	return (
 		<nav aria-label="주 메뉴">
 			<ButtonLink
@@ -26,6 +33,17 @@ function Navigation({ onNavigate }: { onNavigate?: () => void }) {
 			>
 				<LayoutDashboardIcon size={18} />홈
 			</ButtonLink>
+			{user.role === "owner" && (
+				<ButtonLink
+					to="/owner/team"
+					fullWidth
+					onPress={onNavigate}
+					className="justify-start"
+					variant="ghost"
+				>
+					<UsersIcon size={18} />팀 접근
+				</ButtonLink>
+			)}
 		</nav>
 	);
 }
@@ -44,7 +62,7 @@ function IdentityCard({ user }: { user: CurrentUser }) {
 						{user.email}
 					</Typography.Paragraph>
 					<Typography.Paragraph color="muted" size="xs">
-						허용된 팀원
+						{user.role.charAt(0).toUpperCase() + user.role.slice(1)}
 					</Typography.Paragraph>
 				</div>
 			</Card.Content>
@@ -82,7 +100,7 @@ export function AppShell({ user }: { user: CurrentUser }) {
 						</Typography.Paragraph>
 					</div>
 				</div>
-				<Navigation />
+				<Navigation user={user} />
 				<div className="mt-auto">
 					<IdentityCard user={user} />
 				</div>
@@ -106,7 +124,10 @@ export function AppShell({ user }: { user: CurrentUser }) {
 										<Drawer.CloseTrigger />
 									</Drawer.Header>
 									<Drawer.Body>
-										<Navigation onNavigate={() => setMobileMenuOpen(false)} />
+										<Navigation
+											user={user}
+											onNavigate={() => setMobileMenuOpen(false)}
+										/>
 									</Drawer.Body>
 									<Drawer.Footer>
 										<IdentityCard user={user} />

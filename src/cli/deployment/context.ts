@@ -53,7 +53,7 @@ export function printDeploymentSummary(config: DeploymentConfig): void {
 			`Name:    ${config.name}`,
 			`Worker:  ${config.workerName}`,
 			`URL:     https://${config.hostname}`,
-			`Access:  ${config.allowedEmails.join(", ")}`,
+			`Owner:   ${config.bootstrapOwnerEmail}`,
 		].join("\n"),
 	});
 }

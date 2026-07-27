@@ -12,10 +12,7 @@ function sqlLiteral(value: string): string {
 export async function seedLocalDatabase(configPath?: string): Promise<void> {
 	const resolvedConfigPath = resolveLocalConfigPath(configPath);
 	const config = await loadUserConfig(resolvedConfigPath);
-	const email = config.allowedEmails[0];
-	if (!email) {
-		throw new Error("allowedEmails에는 최소 한 명의 이메일이 필요합니다.");
-	}
+	const email = config.bootstrapOwnerEmail;
 
 	const template = await readFile(resolveProjectPath("db/seed.sql"), "utf8");
 	const generated = template.replaceAll(

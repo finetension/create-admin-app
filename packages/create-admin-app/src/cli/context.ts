@@ -5,10 +5,10 @@ import type { CreateContext, CreateOptions } from "../core/context.js";
 import {
 	displayNameFromPackageName,
 	normalizeDisplayName,
-	normalizeEmails,
+	normalizeEmail,
 	packageNameFromDirectory,
 } from "../core/project.js";
-import { missingAllowedEmailsError } from "./error.js";
+import { missingOwnerEmailError } from "./error.js";
 import { answer } from "./prompts.js";
 
 export async function createContext(
@@ -54,15 +54,15 @@ export async function createContext(
 					).trim()
 				: displayNameFromPackageName(packageName)),
 	);
-	const rawEmails =
-		options.emails ??
+	const rawOwnerEmail =
+		options.ownerEmail ??
 		(!machine
 			? answer(
 					await prompts.text({
-						message: "접근 허용 이메일 (쉼표로 구분)",
+						message: "초기 Owner 이메일",
 						validate: (value) => {
 							try {
-								normalizeEmails(value ?? "");
+								normalizeEmail(value ?? "");
 								return undefined;
 							} catch (error) {
 								return error instanceof Error ? error.message : String(error);
@@ -71,8 +71,8 @@ export async function createContext(
 					}),
 				)
 			: undefined);
-	if (!rawEmails) {
-		throw missingAllowedEmailsError();
+	if (!rawOwnerEmail) {
+		throw missingOwnerEmailError();
 	}
 	return {
 		args: options,
@@ -83,7 +83,7 @@ export async function createContext(
 			staging: "",
 			packageName,
 			displayName,
-			allowedEmails: normalizeEmails(rawEmails),
+			bootstrapOwnerEmail: normalizeEmail(rawOwnerEmail),
 		},
 	};
 }

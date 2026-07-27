@@ -13,6 +13,9 @@ const workerDeploymentSchema = z.object({
 	id: z.string(),
 	created_on: z.string(),
 });
+const workerSecretSchema = z.object({
+	name: z.string(),
+});
 
 export interface D1Resource {
 	name: string;
@@ -64,6 +67,24 @@ export async function inspectWorker(
 				createdOn: latest.created_on,
 			}
 		: null;
+}
+
+export async function inspectAccessManagementSecret(
+	config: DeploymentConfig,
+): Promise<boolean> {
+	const result = await runWrangler(
+		["secret", "list", "--name", config.workerName],
+		{
+			accountId: config.accountId,
+			capture: true,
+			allowFailure: true,
+		},
+	);
+	if (result.exitCode !== 0) return false;
+	const secrets = z
+		.array(workerSecretSchema)
+		.parse(extractJson(result.stdout, "Worker secret 목록"));
+	return secrets.some((secret) => secret.name === "ACCESS_MANAGEMENT_TOKEN");
 }
 
 export async function inspectD1(

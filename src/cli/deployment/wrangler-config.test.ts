@@ -15,13 +15,27 @@ describe("deployment Wrangler config", () => {
 				compatibilityDate: "2026-07-17",
 				hostname: "management.example.com",
 				name: "Management",
-				allowedEmails: ["admin@example.com"],
+				bootstrapOwnerEmail: "admin@example.com",
 				routing: "custom-domain",
 			} as DeploymentConfig,
 			{
 				teamDomain: "team.cloudflareaccess.com",
-				aud: "audience",
-				appId: "application",
+				audiences: {
+					base: "base-audience",
+					admin: "admin-audience",
+					owner: "owner-audience",
+				},
+				applicationIds: {
+					base: "base-application",
+					admin: "admin-application",
+					owner: "owner-application",
+					public: "public-application",
+				},
+				groupIds: {
+					owner: "owner-group",
+					admin: "admin-group",
+					user: "user-group",
+				},
 			} satisfies AccessResult,
 			{ name: "management-db", id: "database" } satisfies D1Resource,
 		);
@@ -40,9 +54,16 @@ describe("deployment Wrangler config", () => {
 			ENVIRONMENT: "production",
 			APP_NAME: "Management",
 			ACCESS_TEAM_DOMAIN: "team.cloudflareaccess.com",
-			ACCESS_AUD: "audience",
+			ACCESS_AUD_BASE: "base-audience",
+			ACCESS_AUD_ADMIN: "admin-audience",
+			ACCESS_AUD_OWNER: "owner-audience",
+			ACCESS_ACCOUNT_ID: "a".repeat(32),
+			ACCESS_GROUP_OWNER_ID: "owner-group",
+			ACCESS_GROUP_ADMIN_ID: "admin-group",
+			ACCESS_GROUP_USER_ID: "user-group",
+			ACCESS_BOOTSTRAP_OWNER_EMAIL: "admin@example.com",
 		});
-		expect("DEV_ALLOWED_EMAILS" in generated.vars).toBe(false);
+		expect("DEV_ACCESS_ROLE" in generated.vars).toBe(false);
 	});
 
 	it("enables workers.dev without creating a custom-domain route", () => {
@@ -53,13 +74,27 @@ describe("deployment Wrangler config", () => {
 				compatibilityDate: "2026-07-17",
 				hostname: "management.account-name.workers.dev",
 				name: "Management",
-				allowedEmails: ["admin@example.com"],
+				bootstrapOwnerEmail: "admin@example.com",
 				routing: "workers-dev",
 			} as DeploymentConfig,
 			{
 				teamDomain: "team.cloudflareaccess.com",
-				aud: "audience",
-				appId: "application",
+				audiences: {
+					base: "base-audience",
+					admin: "admin-audience",
+					owner: "owner-audience",
+				},
+				applicationIds: {
+					base: "base-application",
+					admin: "admin-application",
+					owner: "owner-application",
+					public: "public-application",
+				},
+				groupIds: {
+					owner: "owner-group",
+					admin: "admin-group",
+					user: "user-group",
+				},
 			} satisfies AccessResult,
 			{ name: "management-db", id: "database" } satisfies D1Resource,
 		);

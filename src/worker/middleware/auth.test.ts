@@ -2,40 +2,54 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	accessJwtVerificationOptions,
 	type IdentityBindings,
-	parseDevelopmentEmails,
-	resolveIdentityEmail,
+	resolveIdentity,
 	resolveUser,
 	verifyAccessIdentity,
 } from "./auth";
 
-const productionBindings = {
-	ENVIRONMENT: "production",
+const sharedBindings = {
+	ACCESS_ACCOUNT_ID: "a".repeat(32),
+	ACCESS_GROUP_OWNER_ID: "owner-group",
+	ACCESS_GROUP_ADMIN_ID: "admin-group",
+	ACCESS_GROUP_USER_ID: "user-group",
+	ACCESS_BOOTSTRAP_OWNER_EMAIL: "founder@example.com",
+	ACCESS_MANAGEMENT_TOKEN: "test-token",
 	ACCESS_TEAM_DOMAIN: "team.cloudflareaccess.com",
-	ACCESS_AUD: "application-audience",
+	ACCESS_AUD_BASE: "base-audience",
+	ACCESS_AUD_ADMIN: "admin-audience",
+	ACCESS_AUD_OWNER: "owner-audience",
+};
+
+const productionBindings = {
+	...sharedBindings,
+	ENVIRONMENT: "production",
 } satisfies IdentityBindings;
 
 const developmentBindings = {
+	...sharedBindings,
 	ENVIRONMENT: "development",
-	DEV_ALLOWED_EMAILS: JSON.stringify([
-		"founder@example.com",
-		"teammate@example.com",
-	]),
-	ACCESS_TEAM_DOMAIN: "",
-	ACCESS_AUD: "",
+	DEV_USER_EMAIL: "founder@example.com",
+	DEV_ACCESS_ROLE: "owner",
 } satisfies IdentityBindings;
 
 describe("Access identity boundary", () => {
-	it("delegates production identity to the Access assertion verifier", async () => {
+	it("resolves production email and role through verified boundaries", async () => {
 		const verifyIdentity = vi.fn(async () => "member@example.com");
+		const resolveRole = vi.fn(async () => "admin" as const);
 
 		await expect(
-			resolveIdentityEmail(
+			resolveIdentity(
 				new Request("https://admin.example.com/api/me"),
 				productionBindings,
 				verifyIdentity,
+				resolveRole,
 			),
-		).resolves.toBe("member@example.com");
+		).resolves.toEqual({ email: "member@example.com", role: "admin" });
 		expect(verifyIdentity).toHaveBeenCalledOnce();
+		expect(resolveRole).toHaveBeenCalledWith(
+			"member@example.com",
+			productionBindings,
+		);
 	});
 
 	it("requires an Access assertion in production", async () => {
@@ -50,7 +64,7 @@ describe("Access identity boundary", () => {
 		});
 	});
 
-	it("pins Access verification to the configured issuer and audience", () => {
+	it("pins Access verification to the configured issuer and route audience", async () => {
 		expect(
 			accessJwtVerificationOptions(
 				"https://team.cloudflareaccess.com/",
@@ -60,9 +74,24 @@ describe("Access identity boundary", () => {
 			issuer: "https://team.cloudflareaccess.com",
 			audience: "application-audience",
 		});
+		const verifyJwt = vi.fn(async () => ({
+			payload: { email: "owner@example.com" },
+		}));
+		await verifyAccessIdentity(
+			new Request("https://admin.example.com/api/owner/members", {
+				headers: { "Cf-Access-Jwt-Assertion": "valid-token" },
+			}),
+			productionBindings,
+			verifyJwt,
+		);
+		expect(verifyJwt).toHaveBeenCalledWith(
+			"valid-token",
+			expect.any(Function),
+			expect.objectContaining({ audience: "owner-audience" }),
+		);
 	});
 
-	it("rejects invalid signatures, issuers, or audiences as authentication errors", async () => {
+	it("rejects invalid signatures, issuers, or audiences", async () => {
 		await expect(
 			verifyAccessIdentity(
 				new Request("https://admin.example.com/api/me", {
@@ -79,40 +108,33 @@ describe("Access identity boundary", () => {
 		});
 	});
 
-	it("uses only configured development identities locally", async () => {
+	it("uses explicit role bindings locally and ignores request headers", async () => {
 		await expect(
-			resolveIdentityEmail(
-				new Request("http://localhost/api/me"),
-				developmentBindings,
-			),
-		).resolves.toBe("founder@example.com");
-		await expect(
-			resolveIdentityEmail(
+			resolveIdentity(
 				new Request("http://localhost/api/me", {
-					headers: { "X-Dev-User": "Teammate@Example.com" },
+					headers: {
+						"X-Dev-User": "outsider@example.com",
+						"X-Dev-Role": "user",
+					},
 				}),
 				developmentBindings,
 			),
-		).resolves.toBe("teammate@example.com");
-		await expect(
-			resolveIdentityEmail(
-				new Request("http://localhost/api/me", {
-					headers: { "X-Dev-User": "outsider@example.com" },
-				}),
-				developmentBindings,
-			),
-		).rejects.toMatchObject({
-			status: 403,
-			code: "USER_NOT_ALLOWED",
+		).resolves.toEqual({
+			email: "founder@example.com",
+			role: "owner",
 		});
 	});
 
-	it("normalizes and deduplicates development emails", () => {
-		expect(
-			parseDevelopmentEmails(
-				JSON.stringify([" Founder@Example.com ", "founder@example.com"]),
-			),
-		).toEqual(["founder@example.com"]);
+	it("represents public local development as unauthenticated", async () => {
+		await expect(
+			resolveIdentity(new Request("http://localhost/api/me"), {
+				...developmentBindings,
+				DEV_ACCESS_ROLE: "public",
+			}),
+		).rejects.toMatchObject({
+			status: 401,
+			code: "UNAUTHENTICATED",
+		});
 	});
 
 	it("uses an idempotent insert before resolving the audit identity", async () => {
@@ -128,10 +150,14 @@ describe("Access identity boundary", () => {
 		}));
 
 		await expect(
-			resolveUser({ prepare } as unknown as D1Database, "founder@example.com"),
+			resolveUser({ prepare } as unknown as D1Database, {
+				email: "founder@example.com",
+				role: "owner",
+			}),
 		).resolves.toEqual({
 			id: "user-id",
 			email: "founder@example.com",
+			role: "owner",
 		});
 		expect(prepare.mock.calls[0]?.[0]).toContain("INSERT OR IGNORE");
 		expect(run).toHaveBeenCalledOnce();

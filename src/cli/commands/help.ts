@@ -212,7 +212,8 @@ export async function buildHelpContract(includeInternal = true) {
 				path: "config.toml",
 				strict: true,
 				sections: {
-					project: ["name", "slug", "allowed_emails"],
+					project: ["name", "slug"],
+					access: ["bootstrap_owner_email"],
 					github: ["owner", "repository", "visibility"],
 					cloudflare: ["account_id", "workers_dev", "domain", "subdomain"],
 				},

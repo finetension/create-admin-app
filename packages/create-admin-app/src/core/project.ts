@@ -39,14 +39,10 @@ export function normalizeDisplayName(value: string): string {
 	return parsed.data;
 }
 
-export function normalizeEmails(value: string): string[] {
-	const values = value
-		.split(/[\n,]+/)
-		.map((email) => email.trim())
-		.filter(Boolean);
-	const parsed = z.array(emailSchema).min(1).safeParse(values);
+export function normalizeEmail(value: string): string {
+	const parsed = emailSchema.safeParse(value);
 	if (!parsed.success) {
-		throw new Error("올바른 접근 허용 이메일을 하나 이상 입력하세요.");
+		throw new Error("올바른 초기 Owner 이메일을 입력하세요.");
 	}
-	return [...new Set(parsed.data)];
+	return parsed.data;
 }

@@ -7,14 +7,14 @@ describe("create arguments", () => {
 			parseArgs([
 				"my-admin",
 				"--json",
-				"--emails",
+				"--owner-email",
 				"admin@example.com",
 				"--skip-install",
 			]),
 		).toMatchObject({
 			directory: "my-admin",
 			json: true,
-			emails: "admin@example.com",
+			ownerEmail: "admin@example.com",
 			skipInstall: true,
 			public: false,
 		});
@@ -26,14 +26,14 @@ describe("create arguments", () => {
 				"--",
 				"my-admin",
 				"--json",
-				"--emails",
+				"--owner-email",
 				"admin@example.com",
 				"--skip-install",
 			]),
 		).toMatchObject({
 			directory: "my-admin",
 			json: true,
-			emails: "admin@example.com",
+			ownerEmail: "admin@example.com",
 			skipInstall: true,
 		});
 	});
@@ -54,7 +54,13 @@ describe("create arguments", () => {
 
 	it("requires deploy approval and message in JSON mode", () => {
 		expect(() =>
-			parseArgs(["app", "--deploy", "--json", "--emails", "a@example.com"]),
+			parseArgs([
+				"app",
+				"--deploy",
+				"--json",
+				"--owner-email",
+				"a@example.com",
+			]),
 		).toThrow("--yes");
 	});
 

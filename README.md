@@ -13,7 +13,7 @@ pnpm create @finetension/admin-app my-company
 Pass generator options after pnpm's `--` separator:
 
 ```bash
-pnpm create @finetension/admin-app -- my-company --emails owner@example.com --json
+pnpm create @finetension/admin-app -- my-company --owner-email owner@example.com --json
 ```
 
 The generator installs dependencies, verifies the local project, and initializes Git. If deployment is explicitly selected, it delegates GitHub and Cloudflare connection to the generated project's built-in CLI. Repositories are private by default; `--public` explicitly selects a public repository and remains deployable.

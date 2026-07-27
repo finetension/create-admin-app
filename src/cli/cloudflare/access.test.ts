@@ -1,40 +1,42 @@
 import { describe, expect, it } from "vitest";
-import type { DeploymentConfig } from "../core/config.ts";
-import {
-	createAccessAllowPolicy,
-	inspectAccessPolicyBoundary,
-} from "./access.ts";
+import { createAccessPolicy, inspectAccessPolicyBoundary } from "./access.ts";
 
-describe("Cloudflare Access policy", () => {
-	it("uses the configured email list as the production authorization boundary", () => {
-		const config = {
-			access: {
-				policyName: "Allow Management team",
-				allowedEmails: ["founder@example.com", "teammate@example.com"],
-			},
-		} as DeploymentConfig;
-
-		expect(createAccessAllowPolicy(config)).toEqual({
-			name: "Allow Management team",
+describe("Cloudflare Access policies", () => {
+	it("builds group-backed allow policies", () => {
+		expect(
+			createAccessPolicy("Allow admins", "allow", [
+				"owner-group",
+				"admin-group",
+			]),
+		).toEqual({
+			name: "Allow admins",
 			decision: "allow",
 			include: [
-				{ email: { email: "founder@example.com" } },
-				{ email: { email: "teammate@example.com" } },
+				{ group: { id: "owner-group" } },
+				{ group: { id: "admin-group" } },
 			],
 		});
 	});
 
-	it("accepts only one exact email Allow policy", () => {
+	it("builds narrowly scoped public bypass policies", () => {
+		expect(createAccessPolicy("Bypass public", "bypass", [])).toEqual({
+			name: "Bypass public",
+			decision: "bypass",
+			include: [{ everyone: {} }],
+		});
+	});
+
+	it("accepts only one exact role-group allow policy", () => {
 		const exactPolicy = {
 			id: "policy-id",
-			name: "Allow My Company team",
+			name: "Allow owners",
 			decision: "allow",
-			include: [{ email: { email: "founder@example.com" } }],
+			include: [{ group: { id: "owner-group" } }],
 		};
 		expect(
-			inspectAccessPolicyBoundary([exactPolicy], exactPolicy.name, [
-				"founder@example.com",
-			]).exact,
+			inspectAccessPolicyBoundary([exactPolicy], exactPolicy.name, "allow", [
+				"owner-group",
+			]),
 		).toBe(true);
 		expect(
 			inspectAccessPolicyBoundary(
@@ -44,17 +46,18 @@ describe("Cloudflare Access policy", () => {
 						id: "unexpected",
 						name: "Allow outsider",
 						decision: "allow",
-						include: [{ email: { email: "outsider@example.com" } }],
+						include: [{ everyone: {} }],
 					},
 				],
 				exactPolicy.name,
-				["founder@example.com"],
-			).exact,
+				"allow",
+				["owner-group"],
+			),
 		).toBe(false);
 		expect(
-			inspectAccessPolicyBoundary([exactPolicy], exactPolicy.name, [
-				"teammate@example.com",
-			]).exact,
+			inspectAccessPolicyBoundary([exactPolicy], exactPolicy.name, "allow", [
+				"admin-group",
+			]),
 		).toBe(false);
 	});
 });

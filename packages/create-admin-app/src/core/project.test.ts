@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	displayNameFromPackageName,
 	normalizeDisplayName,
-	normalizeEmails,
+	normalizeEmail,
 	packageNameFromDirectory,
 } from "./project.js";
 
@@ -28,15 +28,11 @@ describe("project inputs", () => {
 		expect(() => normalizeDisplayName("a".repeat(101))).toThrow("100자");
 	});
 
-	it("normalizes and deduplicates allowed emails", () => {
-		expect(
-			normalizeEmails(
-				" Admin@Example.com,owner@example.com\nadmin@example.com ",
-			),
-		).toEqual(["admin@example.com", "owner@example.com"]);
+	it("normalizes the bootstrap Owner email", () => {
+		expect(normalizeEmail(" Admin@Example.com ")).toBe("admin@example.com");
 	});
 
 	it("rejects invalid emails", () => {
-		expect(() => normalizeEmails("not-an-email")).toThrow("이메일");
+		expect(() => normalizeEmail("not-an-email")).toThrow("이메일");
 	});
 });

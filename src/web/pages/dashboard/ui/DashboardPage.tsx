@@ -12,8 +12,8 @@ import {
 
 const foundations = [
 	{
-		title: "동일 권한 인증",
-		description: "Cloudflare Access 정책이 신뢰 팀의 접근 경계입니다.",
+		title: "역할 기반 접근",
+		description: "Cloudflare Access가 Owner, Admin, User 경계를 적용합니다.",
 		icon: ShieldCheckIcon,
 	},
 	{

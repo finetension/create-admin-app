@@ -53,7 +53,7 @@ export default defineCommand({
 		},
 		"include-data": {
 			type: "boolean",
-			description: "D1까지 복구 보장 없이 삭제합니다.",
+			description: "D1과 Access 역할 멤버십까지 복구 보장 없이 삭제합니다.",
 			default: false,
 		},
 		yes: {
@@ -92,7 +92,11 @@ export default defineCommand({
 			confirm: config.slug,
 			include_data: args["include-data"],
 			worker: inspection.worker?.name ?? null,
-			access: inspection.access.appId ?? null,
+			access_applications: inspection.access.applicationIds ?? {},
+			access_groups: {
+				count: Object.keys(inspection.access.groupIds ?? {}).length,
+				action: args["include-data"] ? "delete" : "preserve",
+			},
 			d1: {
 				name: inspection.d1?.name ?? null,
 				action: args["include-data"] ? "delete" : "preserve",

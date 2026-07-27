@@ -19,7 +19,7 @@ function fixtureContext(): CreateContext {
 			staging: "",
 			packageName: "admin",
 			displayName: "Admin",
-			allowedEmails: ["admin@example.com"],
+			bootstrapOwnerEmail: "admin@example.com",
 		},
 	};
 }

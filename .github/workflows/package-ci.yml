@@ -39,7 +39,7 @@ jobs:
           pnpm dlx "$package_archive" "$generated_project" \
             --json \
             --name "Generated Admin" \
-            --emails "admin@example.com"
+            --owner-email "admin@example.com"
           cd "$generated_project"
           test -f .gitignore
           test -f config.toml

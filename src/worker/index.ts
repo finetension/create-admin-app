@@ -3,6 +3,7 @@ import { logger } from "hono/logger";
 import { secureHeaders } from "hono/secure-headers";
 import { AppError } from "./lib/errors";
 import { authenticate } from "./middleware/auth";
+import { accessMembers } from "./routes/access-members";
 import type { AppEnv } from "./types";
 
 const app = new Hono<AppEnv>().basePath("/api");
@@ -10,7 +11,7 @@ const app = new Hono<AppEnv>().basePath("/api");
 app.use("*", secureHeaders());
 app.use("*", logger());
 
-app.get("/health", (c) =>
+app.get("/public/health", (c) =>
 	c.json({
 		status: "ok",
 		environment: c.env.ENVIRONMENT,
@@ -18,8 +19,17 @@ app.get("/health", (c) =>
 	}),
 );
 
-app.use("*", authenticate);
+app.use("*", async (c, next) => {
+	if (c.req.path === "/api/public" || c.req.path.startsWith("/api/public/")) {
+		await next();
+		return;
+	}
+	await authenticate(c, next);
+});
 app.get("/me", (c) => c.json({ data: c.get("user") }));
+app.get("/admin/me", (c) => c.json({ data: c.get("user") }));
+app.get("/owner/me", (c) => c.json({ data: c.get("user") }));
+app.route("/owner", accessMembers);
 
 app.notFound((c) =>
 	c.json(

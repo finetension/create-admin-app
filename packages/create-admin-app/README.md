@@ -9,7 +9,7 @@ pnpm create @finetension/admin-app my-company
 For non-interactive use or any generator option, place pnpm's `--` separator before the project directory:
 
 ```bash
-pnpm create @finetension/admin-app -- my-company --emails owner@example.com --json
+pnpm create @finetension/admin-app -- my-company --owner-email owner@example.com --json
 ```
 
 The generator produces a complete local project first. The generated project's built-in `pnpm cli deploy` command handles optional GitHub and Cloudflare connection after explicit approval.

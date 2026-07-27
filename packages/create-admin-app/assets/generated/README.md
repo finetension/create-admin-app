@@ -20,6 +20,15 @@ pnpm dev
 
 Before the first production deployment this uses persistent local D1. After the first successful deployment, development uses the single canonical remote D1.
 
+To verify role boundaries before deployment:
+
+```bash
+pnpm cli dev --database local --role owner
+pnpm cli dev --database local --role admin
+pnpm cli dev --database local --role user
+pnpm cli dev --database local --role public
+```
+
 ## Verify the project
 
 ```bash
@@ -55,7 +64,7 @@ pnpm cli status
 pnpm cli logs
 ```
 
-Production D1 migrations, Worker deployment, Access configuration, and infrastructure destruction run only in guarded GitHub Actions. Project targets live in the Git-tracked `config.toml`; credentials stay in the OS credential store and GitHub repository secret.
+Production D1 migrations, Worker deployment, Access infrastructure, and infrastructure destruction run only in guarded GitHub Actions. The Owner screen is the narrow runtime exception for audited Access membership changes and native session revocation. Project targets live in the Git-tracked `config.toml`; credentials stay in the OS credential store, GitHub repository secret, and the deployed Worker secret binding.
 
 ## Documentation
 

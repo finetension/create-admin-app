@@ -29,7 +29,7 @@ function context(): CreateContext {
 			staging: "/tmp/.my-company.create-test",
 			packageName: "my-company",
 			displayName: "My Company",
-			allowedEmails: ["owner@example.com"],
+			bootstrapOwnerEmail: "owner@example.com",
 		},
 	};
 }

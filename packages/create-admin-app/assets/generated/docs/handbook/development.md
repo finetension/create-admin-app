@@ -36,7 +36,7 @@ Do not create placeholder slices. Add a real business capability as one reviewab
 
 ## Product boundary
 
-Define the first real company workflow in `docs/specs/product-requirements.md`. Do not add tenancy, workspaces, role systems, generic records, custom fields, workflow builders, or runtime schema engines without an explicit product decision.
+Define the first real company workflow in `docs/specs/product-requirements.md`. The fixed Owner, Admin, User, and Public boundaries are infrastructure, not a customizable permission builder. Do not add tenancy, workspaces, custom roles, resource permissions, generic records, custom fields, workflow builders, or runtime schema engines without an explicit product decision.
 
 Existing platforms remain authoritative where they already present the needed information. Build the missing aggregation, calculation, decision, or operation instead of cloning a source platform.
 
@@ -54,9 +54,13 @@ ESLint rejects direct HeroUI and Lucide imports outside the adapter and raw inte
 
 ## Local identity and data
 
-Production authentication and authorization are enforced by Cloudflare Access. The Worker verifies the Access assertion and uses the verified email for identity and audit; it does not re-evaluate `allowedEmails`.
+Production authentication and authorization are enforced by Cloudflare Access role groups and path-specific applications. The Worker verifies the route-specific audience, resolves the email's Access role, and stores only identity and audit events in D1.
 
-Local development has no Access gateway. `DEV_ALLOWED_EMAILS` is derived from project configuration, the first address is the default local identity, and `X-Dev-User` may select another configured address for testing. Production never receives `DEV_ALLOWED_EMAILS`.
+Local development has no Access gateway. `pnpm cli dev --database local --role owner|admin|user|public` injects an explicit local role with the configured bootstrap Owner email. Request headers cannot select an identity or role. An explicit role cannot be combined with remote D1 development.
+
+The Owner team screen changes only the three project Access groups, invokes Cloudflare's account-wide per-user Access session revocation, and writes the actor and change to D1 audit logs. The bootstrap Owner and final Owner cannot be removed or demoted.
+
+With local D1, the same screen uses restart-ephemeral in-memory members so its UX and guards can be tested without a Cloudflare token or production mutation. This simulation is never stored in a file or D1.
 
 Before deployment, development uses persistent local D1. After deployment, development uses the canonical remote D1. Tests always use a temporary local D1.
 

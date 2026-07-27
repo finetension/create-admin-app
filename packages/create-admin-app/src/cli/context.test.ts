@@ -7,7 +7,7 @@ describe("create context", () => {
 		const context = await createContext({
 			directory: "My Admin",
 			name: "Company Console",
-			emails: "Owner@Example.com, owner@example.com",
+			ownerEmail: "Owner@Example.com",
 			yes: false,
 			skipInstall: true,
 			public: false,
@@ -21,12 +21,12 @@ describe("create context", () => {
 				destination: resolve("My Admin"),
 				packageName: "my-admin",
 				displayName: "Company Console",
-				allowedEmails: ["owner@example.com"],
+				bootstrapOwnerEmail: "owner@example.com",
 			},
 		});
 	});
 
-	it("requires directory and emails in machine mode", async () => {
+	it("requires directory and an owner email in machine mode", async () => {
 		await expect(
 			createContext({
 				yes: false,
@@ -54,8 +54,8 @@ describe("create context", () => {
 			code: "missing_required_input",
 			exitCode: 2,
 			details: {
-				field: "allowed_emails",
-				option: "--emails",
+				field: "access.bootstrap_owner_email",
+				option: "--owner-email",
 				may_infer: false,
 				required_action: "ask_user",
 			},
@@ -66,7 +66,7 @@ describe("create context", () => {
 		await expect(
 			createContext({
 				directory: "my-admin",
-				emails: "owner@example.com",
+				ownerEmail: "owner@example.com",
 				yes: false,
 				skipInstall: true,
 				public: false,

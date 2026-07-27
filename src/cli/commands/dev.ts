@@ -1,7 +1,10 @@
 import { defineCommand } from "citty";
 import { commonOutputArgs } from "../core/runtime.ts";
 import { parseDevelopmentDatabaseMode } from "../database/mode.ts";
-import { startDevelopmentServer } from "../project/dev.ts";
+import {
+	parseDevelopmentAccessRole,
+	startDevelopmentServer,
+} from "../project/dev.ts";
 
 export default defineCommand({
 	meta: {
@@ -52,6 +55,12 @@ export default defineCommand({
 			default: "auto",
 			valueHint: "mode",
 		},
+		role: {
+			type: "enum",
+			options: ["owner", "admin", "user", "public"],
+			description: "local D1에서 확인할 Access 역할 (기본 owner)",
+			valueHint: "role",
+		},
 	},
 	async run({ args }) {
 		await startDevelopmentServer({
@@ -62,6 +71,7 @@ export default defineCommand({
 			port: args.port,
 			open: args.open,
 			database: parseDevelopmentDatabaseMode(args.database),
+			role: parseDevelopmentAccessRole(args.role),
 		});
 	},
 });

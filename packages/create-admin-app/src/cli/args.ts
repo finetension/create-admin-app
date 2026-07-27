@@ -13,10 +13,10 @@ export const createArgs = {
 		description: "앱에 표시할 이름",
 		valueHint: "name",
 	},
-	emails: {
+	"owner-email": {
 		type: "string",
-		description: "Cloudflare Access 허용 이메일 목록",
-		valueHint: "email,...",
+		description: "제거할 수 없는 초기 Cloudflare Access Owner 이메일",
+		valueHint: "email",
 	},
 	public: {
 		type: "boolean",
@@ -61,7 +61,8 @@ const parsedArgumentKeys = new Set([
 	"_",
 	"directory",
 	"name",
-	"emails",
+	"owner-email",
+	"ownerEmail",
 	"public",
 	"deploy",
 	"message",
@@ -111,7 +112,7 @@ export function resolveCreateOptions(
 		interactive: parsed.interactive,
 		...(parsed.directory ? { directory: parsed.directory } : {}),
 		...(parsed.name ? { name: parsed.name } : {}),
-		...(parsed.emails ? { emails: parsed.emails } : {}),
+		...(parsed["owner-email"] ? { ownerEmail: parsed["owner-email"] } : {}),
 		...(parsed.message ? { message: parsed.message } : {}),
 	};
 }

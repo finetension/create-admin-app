@@ -20,7 +20,8 @@
 
 Git 추적 루트 `config.toml`:
 
-- `[project]`: 표시 이름, slug, 접근 허용 이메일
+- `[project]`: 표시 이름과 slug
+- `[access]`: 제거할 수 없는 Bootstrap Owner 이메일
 - `[github]`: owner, repository, visibility
 - `[cloudflare]`: account ID와 `workers.dev` 또는 custom domain route
 
@@ -30,7 +31,7 @@ Secrets:
 
 - `CLOUDFLARE_API_TOKEN`
 
-첫 배포 경험은 계정 선택과 Zone 조회를 단순화하기 위해 계정 소유 Cloudflare Account API Token 하나를 계정 단위 OS credential store와 GitHub repository Actions secret에 등록한다. 저장소 파일이나 로그에는 token을 기록하지 않는다. `pull_request`와 fork job은 이 secret을 참조하지 않고 `main` Application Deploy·Application Destroy job만 process environment로 전달한다.
+첫 배포 경험은 계정 선택과 Zone 조회를 단순화하기 위해 계정 소유 Cloudflare Account API Token 하나를 계정 단위 OS credential store와 GitHub repository Actions secret에 등록한다. 저장소 파일이나 로그에는 token을 기록하지 않는다. `pull_request`와 fork job은 이 secret을 참조하지 않고 `main` Application Deploy·Application Destroy job만 process environment로 전달한다. Deploy는 같은 값을 Worker의 `ACCESS_MANAGEMENT_TOKEN` secret으로 주입한다. GitHub secret은 Worker에서 자동으로 보이지 않으므로 이 주입은 배포 단계의 명시적인 책임이다.
 
 Token은 다음 순서로 만든다.
 
@@ -44,13 +45,15 @@ Token은 다음 순서로 만든다.
 
 이 템플릿은 Workers Scripts, D1, Workers KV, Access와 Zone·route를 포함해 계정과 Zone 전반을 생성·변경·삭제할 수 있다. 개별 권한을 매번 찾지 않는 대신 유출 시 영향 범위가 큰 의도적인 운영 선택이다. 다른 Account API Token의 목록·변경은 별도 권한이며 이 프로젝트의 배포에는 필요하지 않다. 프로젝트 CLI는 token을 보관하기 전에 필요한 API를 읽기 전용으로 확인하고 로컬 파일에는 남기지 않는다. 의심스러운 노출이나 팀 운영 변경이 있으면 Cloudflare에서 token을 교체하고 OS credential store와 GitHub repository secret을 함께 갱신한다.
 
-Access 로그인은 별도 OAuth secret이 필요 없는 [One-time PIN](https://developers.cloudflare.com/cloudflare-one/integrations/identity-providers/one-time-pin/)을 기본으로 하고 `allowedEmails` 정책에 포함된 주소에만 코드를 보낸다. 신규 Zero Trust organization은 OTP를 자동으로 만들지 않으므로 Application Deploy workflow가 기존 identity provider를 보존하면서 OTP를 멱등하게 추가한다. 공통 기반은 R2를 사용하지 않는다.
+Access 로그인은 별도 OAuth secret이 필요 없는 [One-time PIN](https://developers.cloudflare.com/cloudflare-one/integrations/identity-providers/one-time-pin/)을 기본으로 한다. 로그인 허용 대상은 Owner·Admin·User Access 그룹의 구성원이다. 신규 Zero Trust organization은 OTP를 자동으로 만들지 않으므로 Application Deploy workflow가 기존 identity provider를 보존하면서 OTP를 멱등하게 추가한다. 공통 기반은 R2를 사용하지 않는다.
 
 Zero Trust organization 자체가 없는 account는 Dashboard에서 [team name과 plan을 한 번 설정](https://developers.cloudflare.com/learning-paths/clientless-access/initial-setup/create-zero-trust-org/)해야 한다. 인터랙티브 deploy는 onboarding URL을 열고 완료 뒤 read-only로 재검사한다. machine mode는 `cloudflare_zero_trust_setup_required`, URL과 재실행 hint를 출력하고 외부 변경 전에 종료한다.
 
-Cloudflare Access가 운영 인증·인가 게이트웨이다. 배포는 `allowedEmails`를 Access Allow 정책에만 반영하고 Worker에는 이메일 목록을 전달하지 않는다. Worker 런타임에는 assertion 검증에 필요한 Access team domain과 application audience만 전달한다. Worker는 검증된 이메일을 사용자 식별과 audit에 사용한다.
+Cloudflare Access가 운영 인증·인가 게이트웨이다. 배포는 Bootstrap Owner를 Owner 그룹에 보장하고 동적 구성원은 보존한다. Base application은 Owner·Admin·User, Admin application은 Owner·Admin, Owner application은 Owner 그룹을 허용한다. Public application은 데이터가 없는 빌드 산출물 `/assets/*`와 명시적 공개 경로 `/public/*`, `/api/public/*`만 bypass한다. 역할별 HTML 경로와 API는 계속 해당 Access application이 보호한다. Access API는 빈 `include` 그룹을 허용하지 않으므로 멤버가 없는 역할에는 로그인할 수 없는 예약된 `example.com` placeholder 이메일 하나를 둔다. 배포과 Owner API는 이 규칙을 자동으로 정규화하고 멤버 목록·역할 판정·상태의 인원수에서는 제외한다. Worker 런타임에는 assertion 검증에 필요한 Access team domain과 Base·Admin·Owner audience를 전달하고 이메일이나 역할 목록은 전달하지 않는다. Worker는 검증된 이메일을 사용자 식별과 audit에 사용한다.
 
-public 저장소의 source, `config.toml`에 기록된 허용 이메일과 Actions 실행 기록은 공개 범위다. Application Deploy와 Application Destroy는 D1 데이터, Worker 요청·응답 또는 live log를 Actions log와 artifact에 기록하지 않는다. GitHub가 secret 값을 마스킹하더라도 명령 인자, 파일 또는 별도 변형값으로 노출되지 않도록 사전 검사한다.
+Owner 전용 API는 `ACCESS_MANAGEMENT_TOKEN`으로 서버에 고정된 세 그룹만 조회·수정하고 대상 사용자의 Access 세션을 native revoke한다. Cloudflare의 per-user revoke는 같은 account의 Access application 전체에 적용되므로 UI가 이 범위를 명시한다. account ID와 group ID를 클라이언트 입력으로 받지 않는다. 이 런타임 mutation은 D1 감사 로그를 남기는 좁은 제품 행위이며 D1 migration, Worker·Access application 배포와 철거의 Actions-only 원칙을 완화하지 않는다.
+
+public 저장소의 source, `config.toml`에 기록된 Bootstrap Owner 이메일과 Actions 실행 기록은 공개 범위다. 동적으로 추가한 역할 멤버 이메일은 Git이나 배포 plan에 출력하지 않는다. Application Deploy와 Application Destroy는 D1 데이터, Worker 요청·응답 또는 live log를 Actions log와 artifact에 기록하지 않는다. GitHub가 secret 값을 마스킹하더라도 명령 인자, 파일 또는 별도 변형값으로 노출되지 않도록 사전 검사한다.
 
 ## 워크플로
 
@@ -64,7 +67,7 @@ workflow의 Cloudflare 단계는 숨겨진 `pnpm cli internal deploy` 또는 `pn
 
 새 GitHub repository는 repository token secret을 먼저 설정한 뒤 첫 `main` push를 실행해 자격 증명 없는 첫 deploy가 시작되는 race를 피한다. 임의 shell 문자열을 받는 범용 workflow를 만들지 않고 각 operation과 입력을 명시한다.
 
-Deploy smoke check는 Cloudflare API에서 Worker deployment가 active인지 확인하고, 인증되지 않은 production URL이 앱 응답 대신 Access 로그인 또는 거부 응답을 반환하는지 확인한다. 인증된 운영 데이터 요청이나 CI용 Access service token은 공통 기반에 두지 않는다.
+Deploy smoke check는 Cloudflare API에서 Worker deployment가 active인지 확인하고, 인증되지 않은 private production URL이 앱 응답 대신 Access 로그인 또는 거부 응답을 반환하며 public health 경로는 접근 가능한지 확인한다. 인증된 운영 데이터 요청이나 CI용 Access service token은 공통 기반에 두지 않는다.
 
 ### Read-only 조회
 
@@ -72,11 +75,11 @@ Deploy smoke check는 Cloudflare API에서 Worker deployment가 active인지 확
 
 machine mode의 `logs`는 완전한 Worker 이벤트마다 stdout에 NDJSON 한 줄을 즉시 출력하고 마지막에 실행 시간, 이벤트 수와 종료 이유를 담은 summary event를 출력한다. Wrangler의 여러 줄 JSON은 한 이벤트로 재조립하며 진행 상태는 stderr로 분리한다.
 
-배포 후 remote D1 binding은 Access로 보호된 Worker를 통하므로 첫 local development에 [사용자 로그인이 필요](https://developers.cloudflare.com/workers/local-development/#connect-to-access-protected-workers)할 수 있다. TTY의 `pnpm cli dev`는 Wrangler의 브라우저 로그인을 시작한다. machine mode는 브라우저를 열지 않고 `access_login_required`와 `pnpm cli dev --interactive` hint를 반환한다. 로컬 remote development용 Access service token은 만들지 않는다.
+배포 후 local Vite Worker는 canonical remote D1 binding을 사용하므로 첫 local development에 Cloudflare 계정 로그인이 필요할 수 있다. TTY의 `pnpm cli dev`는 Wrangler의 브라우저 로그인을 시작한다. machine mode는 브라우저를 열지 않고 `access_login_required`와 `pnpm cli dev --interactive` hint를 반환한다. 이 경로는 실제 Access 역할 세션을 통과하지 않고 기본 Owner actor를 사용하며, 별도 remote-development service token은 만들지 않는다.
 
 ### 철거
 
-`application-destroy.yml`에서 `destroy`를 선택하고 정규화된 서비스 이름을 정확히 입력한다. 기본값은 Access와 Worker만 삭제하고 D1은 보존한다. `include_data`를 명시적으로 선택하면 D1도 복구 보장 없이 삭제한다. 성공한 workflow는 lifecycle을 `destroyed`로 커밋하고 로컬 명령은 이 commit을 fast-forward한다. 철거 후 다시 운영하려면 Application Deploy workflow를 실행한다.
+`application-destroy.yml`에서 `destroy`를 선택하고 정규화된 서비스 이름을 정확히 입력한다. 기본값은 경로별 Access application·policy와 Worker만 삭제하고 D1과 Owner·Admin·User 그룹 구성원을 보존한다. `include_data`를 명시적으로 선택하면 D1과 역할 그룹도 복구 보장 없이 삭제한다. 성공한 workflow는 lifecycle을 `destroyed`로 커밋하고 로컬 명령은 이 commit을 fast-forward한다. 철거 후 다시 운영하면 Application Deploy가 보존한 역할 그룹을 재사용한다.
 
 ## 인프라 상태 원칙
 
@@ -111,14 +114,14 @@ pnpm cli deploy --dry-run --json
 pnpm cli deploy --yes --message "feat: deploy sales dashboard"
 ```
 
-이 명령의 로컬 단계는 Git과 GitHub만 변경한다. 운영 D1 migration, Worker·Access mutation과 인프라 철거는 제품 CLI에서 GitHub Actions 밖에 노출하지 않는다. CLI의 Cloudflare mutation capability 환경변수는 GitHub workflow만 설정한다.
+이 명령의 로컬 단계는 Git과 GitHub만 변경한다. 운영 D1 migration, Worker·Access application·policy mutation과 인프라 철거는 제품 CLI에서 GitHub Actions 밖에 노출하지 않는다. CLI의 Cloudflare mutation capability 환경변수는 GitHub workflow만 설정한다. Owner 전용 런타임 구성원 변경은 이 CLI 표면과 분리한다.
 commit할 변경이 있으면 TTY에서 message를 입력받고 비인터랙티브에서는 `--message`를 요구한다. clean worktree 재배포는 새 commit 없이 workflow를 요청한다.
 secretlint 예외는 `.secretlintignore`에 좁은 경로 패턴과 사유 주석을 함께 기록한다. ignore 변경은 배포 계획에 표시하며 로컬과 Actions가 같은 규칙을 실행한다. secret 검사를 건너뛰는 CLI option은 두지 않는다.
 Actions가 실패하면 commit·push와 이미 완료된 원격 상태를 유지한다. CLI는 실패한 job·step, run URL과 재실행 방법을 출력하며 자동 retry나 revert를 수행하지 않는다. 수정 후 같은 명령을 실행하면 실제 원격 상태를 다시 조회해 남은 단계로 수렴한다. Actions는 성공했지만 local lifecycle fast-forward가 실패하면 `deployed: true`, `local_sync: "failed"`를 구분해 보고한다.
 
 운영 리소스 철거를 요청하는 공개 명령은 `pnpm cli destroy`다. 별도 `infra` 명령 그룹은 두지 않는다. 이 명령은 삭제 대상과 데이터 보존 계획을 먼저 표시한 뒤 guarded Application Destroy workflow를 요청하고 완료와 lifecycle commit의 local fast-forward를 기다리며, 로컬에서 Cloudflare 리소스를 직접 삭제하지 않는다.
 
-TTY에서는 최종 확인으로 project slug를 직접 입력한다. 비인터랙티브에서는 `pnpm cli destroy --yes --confirm <slug>`를 사용하고 D1까지 삭제할 때만 `--include-data`를 추가한다. slug가 `config.toml`과 일치하지 않으면 workflow를 요청하지 않는다.
+TTY에서는 최종 확인으로 project slug를 직접 입력한다. 비인터랙티브에서는 `pnpm cli destroy --yes --confirm <slug>`를 사용하고 D1과 역할 그룹까지 삭제할 때만 `--include-data`를 추가한다. slug가 `config.toml`과 일치하지 않으면 workflow를 요청하지 않는다.
 
 첫 배포 전 local D1에서만 사용하는 명령:
 

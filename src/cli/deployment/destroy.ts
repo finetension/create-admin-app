@@ -1,6 +1,7 @@
 import {
 	type AccessInspection,
-	deleteAccessApplication,
+	deleteAccessApplications,
+	deleteAccessGroups,
 	inspectAccess,
 } from "../cloudflare/access.ts";
 import {
@@ -29,7 +30,8 @@ export interface DestroyOptions {
 interface DestroyDependencies {
 	inspect(config: DeploymentConfig): Promise<DestroyInspection>;
 	assertCapability(): void;
-	deleteAccess(config: DeploymentConfig, appId: string): Promise<void>;
+	deleteAccess(config: DeploymentConfig, appIds: string[]): Promise<void>;
+	deleteGroups(config: DeploymentConfig, groupIds: string[]): Promise<void>;
 	deleteWorker(config: DeploymentConfig, worker: WorkerResource): Promise<void>;
 	deleteD1(config: DeploymentConfig, database: D1Resource): Promise<void>;
 }
@@ -48,7 +50,8 @@ async function inspectDestroyResources(
 const defaultDependencies: DestroyDependencies = {
 	inspect: inspectDestroyResources,
 	assertCapability: () => assertGitHubActionsCapability("destroy"),
-	deleteAccess: deleteAccessApplication,
+	deleteAccess: deleteAccessApplications,
+	deleteGroups: deleteAccessGroups,
 	async deleteWorker(config, worker) {
 		await runWrangler(["delete", worker.name], {
 			accountId: config.accountId,
@@ -67,9 +70,12 @@ export function formatDestroyPlan(
 	includeData: boolean,
 ): string {
 	const access = inspection.access.available
-		? inspection.access.appId
-			? `delete · ${config.hostname}`
+		? Object.keys(inspection.access.applicationIds ?? {}).length > 0
+			? `delete apps · ${config.hostname}`
 			: "missing"
+		: "unknown · Access API token required";
+	const groups = inspection.access.available
+		? `${includeData ? "delete" : "keep"} · ${Object.keys(inspection.access.groupIds ?? {}).length} role groups`
 		: "unknown · Access API token required";
 	const worker = inspection.worker
 		? `delete · ${inspection.worker.name}`
@@ -78,7 +84,12 @@ export function formatDestroyPlan(
 		? `${includeData ? "delete" : "keep"} · ${inspection.d1.name}`
 		: "missing";
 
-	return [`Access: ${access}`, `Worker: ${worker}`, `D1:     ${d1}`].join("\n");
+	return [
+		`Access: ${access}`,
+		`Groups: ${groups}`,
+		`Worker: ${worker}`,
+		`D1:     ${d1}`,
+	].join("\n");
 }
 
 function assertExactConfirmation(
@@ -125,9 +136,12 @@ export async function destroyDeployment(
 		);
 	}
 
-	if (inspection.access.appId) {
-		logger.start(`Access 애플리케이션을 삭제합니다: ${config.hostname}`);
-		await dependencies.deleteAccess(config, inspection.access.appId);
+	const applicationIds = Object.values(
+		inspection.access.applicationIds ?? {},
+	).filter((id): id is string => Boolean(id));
+	if (applicationIds.length > 0) {
+		logger.start(`Access 경로 애플리케이션을 삭제합니다: ${config.hostname}`);
+		await dependencies.deleteAccess(config, applicationIds);
 	}
 	if (inspection.worker) {
 		logger.start(`Worker를 삭제합니다: ${inspection.worker.name}`);
@@ -136,6 +150,13 @@ export async function destroyDeployment(
 	if (includeData && inspection.d1) {
 		logger.start(`D1 데이터베이스를 삭제합니다: ${inspection.d1.name}`);
 		await dependencies.deleteD1(config, inspection.d1);
+	}
+	const groupIds = Object.values(inspection.access.groupIds ?? {}).filter(
+		(id): id is string => Boolean(id),
+	);
+	if (includeData && groupIds.length > 0) {
+		logger.start("Access 역할 그룹과 멤버십을 삭제합니다");
+		await dependencies.deleteGroups(config, groupIds);
 	}
 
 	logger.success("Cloudflare 리소스 삭제를 완료했습니다");

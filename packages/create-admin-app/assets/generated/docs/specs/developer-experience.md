@@ -12,6 +12,7 @@ This document defines the public command contract and end-to-end developer journ
 - `config.toml` stores non-secret project and deployment targets in Git.
 - Cloudflare credentials stay in the OS credential store and the GitHub repository Actions secret.
 - Cloudflare production mutation runs only in guarded GitHub Actions.
+- Audited Owner membership changes are the narrow runtime exception to infrastructure-only Access mutation.
 - Re-running a command converges on the declared state instead of duplicating resources.
 
 ## Command surface
@@ -75,6 +76,8 @@ The generator completes before this repository is shown to the user. A completed
 - After deployment, it uses the canonical remote D1 and removes stale persistent local D1 data.
 - An explicit `--database local|remote` override is diagnostic, not a second production mode.
 - Machine mode never starts browser-based Cloudflare Access login; it returns an actionable error instead.
+- `--database local --role owner|admin|user|public` verifies fixed role boundaries without request-header impersonation.
+- An explicit local role is rejected with remote D1 development.
 
 Tests always use an ephemeral local D1 and never production data.
 
@@ -105,7 +108,7 @@ Interactive first deploy collects or confirms:
 
 The local command then validates the project, scans secrets, prepares a commit, creates or converges the GitHub repository, stores the repository secret, pushes `main`, requests the guarded Application Deploy workflow, waits for it, and fast-forwards the lifecycle commit. It never mutates Worker, D1, Access, or routes from the local process.
 
-The Actions workflow first runs `pnpm check` in a validation job without Cloudflare credentials. Its mutation job requires that validation to pass before it applies append-only D1 migrations, deploys Worker and Access, verifies the protected endpoint, and commits `infra/lifecycle.json` as deployed. A failed or interrupted run is safe to diagnose and re-run.
+The Actions workflow first runs `pnpm check` in a validation job without Cloudflare credentials. Its mutation job requires that validation to pass before it applies append-only D1 migrations, deploys Worker, role groups, path-specific Access applications and policies, injects the repository token as the Worker `ACCESS_MANAGEMENT_TOKEN` secret, verifies the private gate and public health path, and commits `infra/lifecycle.json` as deployed. A failed or interrupted run is safe to diagnose and re-run.
 
 Safe GitHub API reads retry short timeouts and 5xx responses up to three times. A repeated failure distinguishes authentication from network or service errors and tells the agent to rerun the same product CLI command. A repository lookup transport failure is never treated as a missing repository.
 
@@ -113,11 +116,11 @@ Safe GitHub API reads retry short timeouts and 5xx responses up to three times. 
 
 `pnpm cli doctor` checks local dependencies, strict configuration, Git state, Git identity/protocol, lifecycle, and connection readiness without mutation.
 
-`pnpm cli status` reads Worker, D1, Access, route, and lifecycle state. It returns a non-zero configuration status when an error is present; `--strict` also treats warnings as failure. Status JSON summarizes redirect locations to their origin and path, omits query strings and fragments, and replaces the opaque Cloudflare Access challenge path segment with `[redacted]`.
+`pnpm cli status` reads Worker and runtime-secret health, D1, Access roles and path policies, route, and lifecycle state. It returns a non-zero configuration status when an error is present; `--strict` also treats warnings as failure. Status reports only role counts, never the member email list, and redacts opaque Access redirect details.
 
 `pnpm cli logs` streams live Worker logs without creating artifacts. Machine mode has a bounded duration unless overridden, reassembles Wrangler multi-line JSON into one NDJSON record per complete Worker event, and counts events rather than output lines.
 
-`pnpm cli destroy` requests the guarded Application Destroy workflow. It deletes Access and Worker by default and preserves D1. `--include-data` explicitly adds irreversible D1 deletion. Machine mode requires `--yes --confirm <project-slug>`. Success commits and locally fast-forwards the `destroyed` lifecycle state; development resumes only after deploy returns it to `deployed`.
+`pnpm cli destroy` requests the guarded Application Destroy workflow. It deletes path applications and Worker by default while preserving D1 and Access role memberships. `--include-data` explicitly adds irreversible D1 and role-group deletion. Machine mode requires `--yes --confirm <project-slug>`. Success commits and locally fast-forwards the `destroyed` lifecycle state; development resumes only after deploy returns it to `deployed`.
 
 ## Configuration priority
 

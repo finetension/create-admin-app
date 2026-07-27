@@ -14,7 +14,7 @@ on:
         required: true
         type: string
       include_data:
-        description: Also delete the D1 database without recovery guarantees
+        description: Also delete D1 and Access role memberships without recovery guarantees
         required: true
         default: false
         type: boolean

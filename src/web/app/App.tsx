@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Navigate, Route, Routes } from "react-router";
 import { SessionProvider } from "../entities/session";
 import { DashboardPage } from "../pages/dashboard";
+import { TeamPage } from "../pages/team";
 import { api } from "../shared/api";
 import { ErrorState, LoadingState, Surface } from "../shared/ui";
 import { AppShell } from "../widgets/app-shell";
@@ -28,6 +29,9 @@ export default function App() {
 			<Routes>
 				<Route element={<AppShell user={user.data} />}>
 					<Route index element={<DashboardPage />} />
+					{user.data.role === "owner" && (
+						<Route path="owner/team" element={<TeamPage />} />
+					)}
 					<Route path="*" element={<Navigate to="/" replace />} />
 				</Route>
 			</Routes>

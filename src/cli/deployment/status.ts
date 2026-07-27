@@ -1,6 +1,7 @@
 import { type AccessInspection, inspectAccess } from "../cloudflare/access.ts";
 import {
 	type D1Resource,
+	inspectAccessManagementSecret,
 	inspectD1,
 	inspectWorker,
 	type WorkerResource,
@@ -46,6 +47,7 @@ export interface DeploymentStatusDependencies {
 	inspectWorker: typeof inspectWorker;
 	inspectD1: typeof inspectD1;
 	inspectAccess: typeof inspectAccess;
+	inspectAccessManagementSecret: typeof inspectAccessManagementSecret;
 	inspectEndpoint: typeof inspectDeploymentEndpoint;
 	loadLifecycle: typeof loadInfrastructureLifecycle;
 }
@@ -54,6 +56,7 @@ const defaultDependencies: DeploymentStatusDependencies = {
 	inspectWorker,
 	inspectD1,
 	inspectAccess,
+	inspectAccessManagementSecret,
 	inspectEndpoint: inspectDeploymentEndpoint,
 	loadLifecycle: loadInfrastructureLifecycle,
 };
@@ -128,7 +131,10 @@ function failedProbe(
 	);
 }
 
-function workerCheck(probeResult: Probe<WorkerResource | null>) {
+function workerCheck(
+	probeResult: Probe<WorkerResource | null>,
+	secretProbe: Probe<boolean>,
+) {
 	if (probeResult.error) {
 		return failedProbe("worker", "Worker", probeResult.error);
 	}
@@ -139,6 +145,22 @@ function workerCheck(probeResult: Probe<WorkerResource | null>) {
 			"worker_missing",
 			"설정된 Worker deployment가 없습니다.",
 			"pnpm cli deploy를 실행해 production을 배포하세요.",
+		);
+	}
+	if (secretProbe.error) {
+		return failedProbe(
+			"worker",
+			"Worker Access 관리 secret",
+			secretProbe.error,
+		);
+	}
+	if (!secretProbe.value) {
+		return check(
+			"worker",
+			"error",
+			"worker_access_secret_missing",
+			"Worker에 ACCESS_MANAGEMENT_TOKEN secret이 없습니다.",
+			"pnpm cli deploy를 다시 실행해 Repository Secret을 Worker에 동기화하세요.",
 		);
 	}
 	return check(
@@ -180,14 +202,17 @@ function accessMissingParts(access: AccessInspection): string[] {
 	return [
 		!access.organization && "Zero Trust organization",
 		!access.identityProvider && "One-time PIN identity provider",
-		!access.application && "Access application",
-		!access.policy && "exact email Allow policy",
+		!access.groups && "Owner/Admin/User role groups",
+		!access.applications && "path-specific Access applications",
+		!access.policies && "exact group policies",
+		!access.bootstrapOwner && "bootstrap Owner membership",
+		!access.uniqueMemberships && "unique role membership",
 	].filter((part): part is string => Boolean(part));
 }
 
 function accessCheck(
 	probeResult: Probe<AccessInspection>,
-	expectedEmails: string[],
+	bootstrapOwnerEmail: string,
 ) {
 	if (probeResult.error) {
 		return failedProbe("access", "Access", probeResult.error);
@@ -209,12 +234,11 @@ function accessCheck(
 			"error",
 			"access_policy_drift",
 			`Access 구성이 config.toml과 다릅니다: ${missing.join(", ")}`,
-			"pnpm cli deploy를 다시 실행해 OTP, application과 단일 email Allow policy를 동기화하세요.",
+			"pnpm cli deploy를 다시 실행해 역할 그룹과 경로별 정책을 동기화하세요.",
 			{
 				missing,
-				expected_emails: [...expectedEmails].sort(),
-				actual_emails: access.policyEmails ?? [],
-				policy_count: access.policyCount ?? 0,
+				bootstrap_owner_configured: Boolean(bootstrapOwnerEmail),
+				group_member_counts: access.groupMemberCounts ?? {},
 			},
 		);
 	}
@@ -222,13 +246,12 @@ function accessCheck(
 		"access",
 		"ok",
 		"access_ready",
-		"OTP와 config.toml의 단일 email Allow policy가 적용되어 있습니다.",
+		"OTP, 역할 그룹과 경로별 Access 정책이 적용되어 있습니다.",
 		undefined,
 		{
 			team_domain: access.teamDomain,
-			application_id: access.appId,
-			policy_name: access.policyName,
-			emails: access.policyEmails ?? [],
+			application_ids: access.applicationIds,
+			group_member_counts: access.groupMemberCounts ?? {},
 		},
 	);
 }
@@ -325,7 +348,7 @@ function destroyedAccessCheck(probeResult: Probe<AccessInspection>) {
 			"Cloudflare Account API Token을 다시 연결하세요.",
 		);
 	}
-	if (access.application || access.policy) {
+	if (access.applications || access.policies) {
 		return check(
 			"access",
 			"error",
@@ -333,9 +356,9 @@ function destroyedAccessCheck(probeResult: Probe<AccessInspection>) {
 			"lifecycle은 destroyed지만 Access application 또는 policy가 남아 있습니다.",
 			"pnpm cli destroy를 다시 실행해 원격 상태를 수렴시키세요.",
 			{
-				application: access.application,
-				policy: access.policy,
-				application_id: access.appId,
+				applications: access.applications,
+				policies: access.policies,
+				application_ids: access.applicationIds,
 			},
 		);
 	}
@@ -458,13 +481,15 @@ export async function inspectDeploymentStatus(
 	overrides: Partial<DeploymentStatusDependencies> = {},
 ): Promise<DeploymentStatus> {
 	const dependencies = { ...defaultDependencies, ...overrides };
-	const [worker, d1, access, endpoint, lifecycle] = await Promise.all([
-		probe(() => dependencies.inspectWorker(config)),
-		probe(() => dependencies.inspectD1(config)),
-		probe(() => dependencies.inspectAccess(config)),
-		probe(() => dependencies.inspectEndpoint(config)),
-		probe(() => dependencies.loadLifecycle()),
-	]);
+	const [worker, workerSecret, d1, access, endpoint, lifecycle] =
+		await Promise.all([
+			probe(() => dependencies.inspectWorker(config)),
+			probe(() => dependencies.inspectAccessManagementSecret(config)),
+			probe(() => dependencies.inspectD1(config)),
+			probe(() => dependencies.inspectAccess(config)),
+			probe(() => dependencies.inspectEndpoint(config)),
+			probe(() => dependencies.loadLifecycle()),
+		]);
 	const destroyed = lifecycle.value?.production === "destroyed";
 	const remoteChecks = destroyed
 		? [
@@ -474,16 +499,16 @@ export async function inspectDeploymentStatus(
 				destroyedRouteCheck(endpoint, config.hostname),
 			]
 		: [
-				workerCheck(worker),
+				workerCheck(worker, workerSecret),
 				d1Check(d1),
-				accessCheck(access, config.allowedEmails),
+				accessCheck(access, config.bootstrapOwnerEmail),
 				routeCheck(endpoint, config.hostname),
 			];
 	const hasRemoteResources = Boolean(
-		worker.value || d1.value || access.value?.application,
+		worker.value || d1.value || access.value?.applications,
 	);
 	const hasDestroyedRuntime = Boolean(
-		worker.value || access.value?.application || access.value?.policy,
+		worker.value || access.value?.applications || access.value?.policies,
 	);
 	const hasRemoteErrors = remoteChecks.some(
 		(result) => result.status === "error",

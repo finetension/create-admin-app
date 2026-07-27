@@ -10,8 +10,8 @@ import {
 
 const config = {
 	hostname: "operations-hub.example.com",
-	allowedEmails: ["founder@example.com"],
-} as DeploymentConfig;
+	bootstrapOwnerEmail: "founder@example.com",
+} as unknown as DeploymentConfig;
 
 function readyDependencies(): Partial<DeploymentStatusDependencies> {
 	return {
@@ -20,6 +20,7 @@ function readyDependencies(): Partial<DeploymentStatusDependencies> {
 			deploymentId: "deployment-id",
 			createdOn: "2026-07-16T00:00:00Z",
 		})),
+		inspectAccessManagementSecret: vi.fn(async () => true),
 		inspectD1: vi.fn(async () => ({
 			name: "operations-hub-db",
 			id: "database-id",
@@ -28,13 +29,14 @@ function readyDependencies(): Partial<DeploymentStatusDependencies> {
 			available: true,
 			organization: true,
 			identityProvider: true,
-			application: true,
-			policy: true,
-			policyName: "Allow Operations Hub team",
-			policyEmails: ["founder@example.com"],
-			policyCount: 1,
+			groups: true,
+			applications: true,
+			policies: true,
+			bootstrapOwner: true,
+			uniqueMemberships: true,
+			groupMemberCounts: { owner: 1, admin: 0, user: 0 },
 			teamDomain: "paper.cloudflareaccess.com",
-			appId: "app-id",
+			applicationIds: { base: "app-id" },
 		})),
 		inspectEndpoint: vi.fn(async () => ({
 			status: 302,
@@ -108,11 +110,11 @@ describe("deployment status", () => {
 			available: true,
 			organization: true,
 			identityProvider: true,
-			application: true,
-			policy: false,
-			policyName: "Allow Operations Hub team",
-			policyEmails: ["outsider@example.com"],
-			policyCount: 2,
+			groups: true,
+			applications: true,
+			policies: false,
+			bootstrapOwner: true,
+			uniqueMemberships: true,
 		}));
 		dependencies.inspectEndpoint = vi.fn(async () => ({
 			status: 200,
@@ -163,6 +165,18 @@ describe("deployment status", () => {
 		expect(status.summary.error).toBe(1);
 	});
 
+	it("reports a missing runtime Access management secret", async () => {
+		const dependencies = readyDependencies();
+		dependencies.inspectAccessManagementSecret = vi.fn(async () => false);
+
+		const status = await inspectDeploymentStatus(config, dependencies);
+
+		expect(status.checks[0]).toMatchObject({
+			code: "worker_access_secret_missing",
+			status: "error",
+		});
+	});
+
 	it("treats an intentionally destroyed runtime with preserved D1 as healthy", async () => {
 		const dependencies = readyDependencies();
 		dependencies.inspectWorker = vi.fn(async () => null);
@@ -170,8 +184,11 @@ describe("deployment status", () => {
 			available: true,
 			organization: true,
 			identityProvider: true,
-			application: false,
-			policy: false,
+			groups: true,
+			applications: false,
+			policies: false,
+			bootstrapOwner: true,
+			uniqueMemberships: true,
 		}));
 		dependencies.inspectEndpoint = vi.fn(async () => ({
 			status: 404,
@@ -204,8 +221,11 @@ describe("deployment status", () => {
 			available: true,
 			organization: true,
 			identityProvider: true,
-			application: false,
-			policy: false,
+			groups: false,
+			applications: false,
+			policies: false,
+			bootstrapOwner: false,
+			uniqueMemberships: true,
 		}));
 		dependencies.inspectEndpoint = vi.fn(async () => {
 			throw new Error("hostname no longer resolves");

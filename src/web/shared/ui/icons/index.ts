@@ -26,4 +26,7 @@ export {
 	LayoutDashboardIcon,
 	MenuIcon,
 	ShieldCheckIcon,
+	TrashIcon,
+	UserPlusIcon,
+	UsersIcon,
 } from "../adapters/lucide";

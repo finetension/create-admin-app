@@ -86,7 +86,7 @@ export async function writeGeneratedConfig(
 	input: {
 		name: string;
 		slug: string;
-		allowedEmails: string[];
+		bootstrapOwnerEmail: string;
 		isPublic: boolean;
 	},
 ): Promise<void> {
@@ -94,7 +94,9 @@ export async function writeGeneratedConfig(
 		project: {
 			name: input.name,
 			slug: input.slug,
-			allowed_emails: input.allowedEmails,
+		},
+		access: {
+			bootstrap_owner_email: input.bootstrapOwnerEmail,
 		},
 		...(input.isPublic ? { github: { visibility: "public" as const } } : {}),
 	};

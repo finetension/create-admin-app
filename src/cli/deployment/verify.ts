@@ -8,7 +8,7 @@ interface VerificationResponse {
 	status: number;
 	ok: boolean;
 	headers: { get(name: string): string | null };
-	json(): Promise<unknown>;
+	data: unknown;
 }
 
 export interface VerificationResult {
@@ -19,7 +19,7 @@ export interface VerificationResult {
 export async function inspectDeploymentEndpoint(
 	config: DeploymentConfig,
 ): Promise<VerificationResult> {
-	const response = await requestHealth(config.hostname);
+	const response = await requestPath(config.hostname, "/api/me");
 	return {
 		status: response.status,
 		location: response.headers.get("location") ?? "",
@@ -55,13 +55,14 @@ async function resolvePublicIpv4(hostname: string): Promise<string | null> {
 function requestViaIp(
 	hostname: string,
 	address: string,
+	path: string,
 ): Promise<VerificationResponse> {
 	return new Promise((resolveRequest, rejectRequest) => {
 		const request = httpsRequest(
 			{
 				hostname: address,
 				port: 443,
-				path: "/api/health",
+				path,
 				method: "GET",
 				servername: hostname,
 				headers: { Host: hostname },
@@ -76,6 +77,13 @@ function requestViaIp(
 					resolveRequest({
 						status,
 						ok: status >= 200 && status < 300,
+						data: (() => {
+							try {
+								return JSON.parse(body);
+							} catch {
+								return body;
+							}
+						})(),
 						headers: {
 							get(name) {
 								const value = response.headers[name.toLowerCase()];
@@ -83,9 +91,6 @@ function requestViaIp(
 									? (value[0] ?? null)
 									: (value ?? null);
 							},
-						},
-						async json() {
-							return JSON.parse(body);
 						},
 					});
 				});
@@ -99,18 +104,27 @@ function requestViaIp(
 	});
 }
 
-async function requestHealth(hostname: string): Promise<VerificationResponse> {
+async function requestPath(
+	hostname: string,
+	path: string,
+): Promise<VerificationResponse> {
 	try {
-		return await ofetch.raw(`https://${hostname}/api/health`, {
+		const response = await ofetch.raw(`https://${hostname}${path}`, {
 			redirect: "manual",
 			ignoreResponseError: true,
 			retry: 0,
 			timeout: 15_000,
 		});
+		return {
+			status: response.status,
+			ok: response.ok,
+			headers: response.headers,
+			data: response._data,
+		};
 	} catch (error) {
 		const address = await resolvePublicIpv4(hostname);
 		if (!address) throw error;
-		return requestViaIp(hostname, address);
+		return requestViaIp(hostname, address, path);
 	}
 }
 
@@ -130,12 +144,23 @@ export async function verifyDeployment(
 				);
 			}
 			const result = await inspectDeploymentEndpoint(config);
-			if ([301, 302, 303, 307, 308, 401, 403].includes(result.status)) {
+			const privateProtected = [301, 302, 303, 307, 308, 401, 403].includes(
+				result.status,
+			);
+			const publicHealth = await requestPath(
+				config.hostname,
+				"/api/public/health",
+			);
+			const publicPayload = publicHealth.ok
+				? (publicHealth.data as { status?: unknown })
+				: undefined;
+			if (privateProtected && publicPayload?.status === "ok") {
 				logger.success(`Access gate verified: HTTP ${result.status}`);
+				logger.success("Public health verified: HTTP 200");
 				return result;
 			}
 			lastError = new Error(
-				`Access 보호를 확인하지 못했습니다. 응답 상태: ${result.status}`,
+				`배포 경계를 확인하지 못했습니다. private=${result.status}, public=${publicHealth.status}`,
 			);
 		} catch (error) {
 			lastError = error;
