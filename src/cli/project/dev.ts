@@ -1,8 +1,8 @@
 import { rmSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import {
+	type AccessRole,
 	accessRoles,
-	type DevelopmentAccessRole,
 } from "../../shared/contracts/platform.ts";
 import { inspectD1 } from "../cloudflare/resources.ts";
 import { loadUserConfig, resolveLocalConfigPath } from "../core/config.ts";
@@ -28,23 +28,29 @@ export interface DevelopmentOptions {
 	port?: string;
 	open?: boolean;
 	database?: DevelopmentDatabaseMode;
-	role?: DevelopmentAccessRole;
+	role?: AccessRole;
+	public?: boolean;
 }
-
-const developmentAccessRoles = [...accessRoles, "public"] as const;
 
 export function parseDevelopmentAccessRole(
 	value?: string,
-): DevelopmentAccessRole | undefined {
+): AccessRole | undefined {
 	if (value === undefined) return undefined;
-	if (!developmentAccessRoles.includes(value as DevelopmentAccessRole)) {
+	if (value === "public") {
+		throw usageError(
+			"public_is_not_a_role",
+			"public은 역할이 아니라 비인증 접근 범위입니다.",
+			"pnpm cli dev --database local --public을 사용하세요.",
+		);
+	}
+	if (!accessRoles.includes(value as AccessRole)) {
 		throw usageError(
 			"invalid_development_role",
 			`지원하지 않는 개발 역할입니다: ${value}`,
-			"--role에 owner, admin, user, public 중 하나를 지정하세요.",
+			"--role에 owner, admin, member 중 하나를 지정하세요. 비인증 접근은 --public을 사용하세요.",
 		);
 	}
-	return value as DevelopmentAccessRole;
+	return value as AccessRole;
 }
 
 export function parsePort(value?: string): number | undefined {
@@ -114,11 +120,18 @@ export async function startDevelopmentServer(
 		dependencies.removeDevelopmentConfig ??
 		(() => rm(projectPaths.developmentWranglerConfig, { force: true }));
 	const database = await resolveMode(options.database ?? "auto");
-	if (options.role && database.mode !== "local") {
+	if (options.role && options.public) {
 		throw usageError(
-			"development_role_requires_local_database",
-			"--role은 local D1 개발 모드에서만 사용할 수 있습니다.",
-			"pnpm cli dev --database local --role owner|admin|user|public을 사용하세요.",
+			"conflicting_development_access",
+			"--role과 --public은 함께 사용할 수 없습니다.",
+			"인증 역할 하나를 선택하거나 --public만 사용하세요.",
+		);
+	}
+	if ((options.role || options.public) && database.mode !== "local") {
+		throw usageError(
+			"development_access_requires_local_database",
+			"--role과 --public은 local D1 개발 모드에서만 사용할 수 있습니다.",
+			"pnpm cli dev --database local --role owner|admin|member 또는 pnpm cli dev --database local --public을 사용하세요.",
 		);
 	}
 	let remoteEnvironment: NodeJS.ProcessEnv = {};
@@ -173,6 +186,7 @@ export async function startDevelopmentServer(
 				PLATFORM_CONFIG_PATH: configPath,
 				PLATFORM_DATABASE_MODE: database.mode,
 				PLATFORM_ACCESS_ROLE: options.role ?? "owner",
+				PLATFORM_ACCESS_PUBLIC: options.public ? "true" : "false",
 				VITE_APP_NAME: config.name,
 				...remoteEnvironment,
 			},

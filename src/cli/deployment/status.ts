@@ -202,7 +202,7 @@ function accessMissingParts(access: AccessInspection): string[] {
 	return [
 		!access.organization && "Zero Trust organization",
 		!access.identityProvider && "One-time PIN identity provider",
-		!access.groups && "Owner/Admin/User role groups",
+		!access.groups && "Owner/Admin/Member role groups",
 		!access.applications && "path-specific Access applications",
 		!access.policies && "exact group policies",
 		!access.bootstrapOwner && "bootstrap Owner membership",

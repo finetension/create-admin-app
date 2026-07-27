@@ -34,7 +34,7 @@ function readyDependencies(): Partial<DeploymentStatusDependencies> {
 			policies: true,
 			bootstrapOwner: true,
 			uniqueMemberships: true,
-			groupMemberCounts: { owner: 1, admin: 0, user: 0 },
+			groupMemberCounts: { owner: 1, admin: 0, member: 0 },
 			teamDomain: "paper.cloudflareaccess.com",
 			applicationIds: { base: "app-id" },
 		})),

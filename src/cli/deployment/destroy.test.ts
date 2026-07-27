@@ -36,7 +36,7 @@ const inspection: DestroyInspection = {
 		groupIds: {
 			owner: "owner-group-id",
 			admin: "admin-group-id",
-			user: "user-group-id",
+			member: "member-group-id",
 		},
 	},
 };

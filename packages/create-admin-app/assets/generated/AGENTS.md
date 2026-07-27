@@ -13,7 +13,7 @@ This repository is one company, one internal management system, one Cloudflare d
 
 - Ask the user to define the real company problem in the product PRD before inventing business modules.
 - Do not add tenancy, workspaces, custom roles, resource-level permissions, generic records, custom-field engines, or runtime module builders without an explicit product decision.
-- Cloudflare Access groups and path applications are the authorization boundary for Owner, Admin, User, and explicit Public routes. D1 stores audit actors and changes, not role state.
+- Cloudflare Access groups and path applications are the authorization boundary for Owner, Admin, and Member roles plus explicit public routes. D1 stores audit actors and changes, not role state.
 - Add business capabilities as explicit FSD slices, contracts, Worker routes, tests, and D1 migrations.
 - Web product layers import UI only through `src/web/shared/ui`. Prefer HeroUI defaults and composition; use Tailwind utilities for layout only.
 - Remote D1 mutation, Worker deployment, Access infrastructure changes, and infrastructure destruction run only in guarded GitHub Actions. The audited Owner API may change only project Access group membership and revoke user sessions at runtime.

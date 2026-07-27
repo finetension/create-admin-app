@@ -67,6 +67,7 @@ function createDevelopmentWranglerConfig(): string {
 			APP_NAME: userConfig.name,
 			DEV_USER_EMAIL: userConfig.bootstrapOwnerEmail,
 			DEV_ACCESS_ROLE: process.env.PLATFORM_ACCESS_ROLE ?? "owner",
+			DEV_ACCESS_PUBLIC: process.env.PLATFORM_ACCESS_PUBLIC ?? "false",
 			ACCESS_BOOTSTRAP_OWNER_EMAIL: userConfig.bootstrapOwnerEmail,
 		},
 	};

@@ -13,7 +13,7 @@ This repository is the Create Admin App monorepo and canonical Cloudflare-native
 ## Working rules
 
 - One repository, company, deployment, and D1 database form one system. Do not add tenancy, workspaces, or `workspace_id` without a new product decision.
-- Cloudflare Access groups and path applications are the authorization boundary for Owner, Admin, User, and explicit Public routes. D1 stores audit actors and changes, not role state.
+- Cloudflare Access groups and path applications are the authorization boundary for Owner, Admin, and Member roles plus explicit public routes. D1 stores audit actors and changes, not role state.
 - Add business capabilities as explicit FSD slices, API routes, contracts, and D1 migrations. Do not create generic record/custom-field/module-builder abstractions.
 - Web product layers import UI only through `src/web/shared/ui`. Prefer HeroUI defaults and composition; Tailwind utilities are for layout only.
 - Product CLI remote D1 mutation, Worker deployment, and Access infrastructure changes run only in guarded GitHub Actions. The only runtime Cloudflare mutation is the audited Owner API for project group membership and native session revoke. Tests use an ephemeral local D1.

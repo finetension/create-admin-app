@@ -77,7 +77,7 @@ Remote D1 binding은 첫 연결에 Cloudflare 계정 인증이 필요하다. TTY
 
 프로젝트 CLI로 Cloudflare를 연결하면 Dashboard의 기본 `Write all resources` 템플릿으로 만든 계정 소유 Account API Token 하나를 사용한다. CLI는 token을 받기 전에 전체 계정·Zone 변경 권한을 안내하고, 저장하기 전에 token 자체, Workers, D1, Workers KV, Access, Zero Trust organization·identity provider와 Zone 조회를 읽기 전용으로 검증한다. 다른 Account API Token의 목록이나 변경 권한은 배포에 필요하지 않으므로 요구하지 않는다. token은 계정 단위 OS credential store와 대상 GitHub 저장소의 repository Actions secret에 등록한다. Application Deploy는 같은 값을 Worker의 암호화된 `ACCESS_MANAGEMENT_TOKEN` secret으로 주입한다. Worker 코드는 이 별도 binding 이름만 사용해 이후 전용 제한 토큰으로 교체할 수 있게 한다. PR과 fork workflow는 이 secret을 참조하지 않는다.
 
-Zero Trust organization이 없으면 인터랙티브 CLI가 Dashboard onboarding을 열고 완료 뒤 재검사하며 machine mode는 URL을 포함한 구조화 오류로 실패한다. Application Deploy workflow는 기존 IdP를 보존하면서 OTP identity provider, Owner·Admin·User 그룹과 Base·Admin·Owner·Public 경로 정책을 멱등하게 보장한다. 로컬 token도 write 권한을 가지므로 Actions는 token 자체의 보안 경계가 아니라 제품이 지원하는 인프라 mutation·감사 경로다. CLI는 로컬 mutation을 노출하지 않는다. 런타임에서 허용하는 Cloudflare mutation은 Owner 전용 API의 프로젝트 그룹 구성원 변경과 사용자 세션 revoke뿐이다.
+Zero Trust organization이 없으면 인터랙티브 CLI가 Dashboard onboarding을 열고 완료 뒤 재검사하며 machine mode는 URL을 포함한 구조화 오류로 실패한다. Application Deploy workflow는 기존 IdP를 보존하면서 OTP identity provider, Owner·Admin·Member 그룹과 Base·Admin·Owner application 및 명시적 Public 경로 정책을 멱등하게 보장한다. 로컬 token도 write 권한을 가지므로 Actions는 token 자체의 보안 경계가 아니라 제품이 지원하는 인프라 mutation·감사 경로다. CLI는 로컬 mutation을 노출하지 않는다. 런타임에서 허용하는 Cloudflare mutation은 Owner 전용 API의 프로젝트 그룹 구성원 변경과 사용자 세션 revoke뿐이다.
 
 ## 구조
 
@@ -121,6 +121,6 @@ Zero Trust organization이 없으면 인터랙티브 CLI가 Dashboard onboarding
 
 운영 인증·인가는 Cloudflare Access가 담당한다. Worker는 Access application의 공개 JWKS로 assertion의 서명, issuer와 요청 경로의 Base·Admin·Owner audience를 검증한다. 검증된 이메일은 앱 사용자 식별과 audit actor로 사용하며 D1의 역할 사본을 조회하지 않는다.
 
-개발 환경에는 Access가 없으므로 `bootstrap_owner_email`과 명시적인 `DEV_ACCESS_ROLE`을 local binding으로만 주입한다. 기본 역할은 Owner이며 `pnpm cli dev --database local --role owner|admin|user|public`으로 경계를 확인한다. Owner·Admin·User는 Bootstrap Owner 이메일을 actor로 사용하고 Public은 인증 사용자를 만들지 않는다. 운영 배포에는 개발 역할 binding을 포함하지 않고 개발용 역할 header를 허용하지 않는다.
+개발 환경에는 Access가 없으므로 `bootstrap_owner_email`, 명시적인 `DEV_ACCESS_ROLE`과 `DEV_ACCESS_PUBLIC`을 local binding으로만 주입한다. 기본 역할은 Owner이며 `pnpm cli dev --database local --role owner|admin|member`로 인증 역할을, `pnpm cli dev --database local --public`으로 비인증 접근을 확인한다. 인증 역할은 Bootstrap Owner 이메일을 actor로 사용하고 public 접근은 인증 사용자를 만들지 않는다. 운영 배포에는 개발용 binding을 포함하지 않고 개발용 역할 header를 허용하지 않는다.
 
 Owner 팀 관리 화면은 local D1 개발에서 재시작 시 사라지는 메모리 구성원으로 UX와 guard를 시뮬레이션한다. 이 상태는 파일이나 D1에 저장하지 않고 Cloudflare를 변경하지도 않는다. 운영 Worker에서만 실제 Access 그룹과 account-wide per-user revoke를 호출한다.

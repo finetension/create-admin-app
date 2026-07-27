@@ -18,6 +18,7 @@ export interface IdentityBindings extends AccessManagementBindings {
 	ENVIRONMENT: string;
 	DEV_USER_EMAIL?: string;
 	DEV_ACCESS_ROLE?: string;
+	DEV_ACCESS_PUBLIC?: string;
 	ACCESS_TEAM_DOMAIN: string;
 	ACCESS_AUD_BASE: string;
 	ACCESS_AUD_ADMIN: string;
@@ -147,6 +148,21 @@ async function resolveProductionRole(
 }
 
 function resolveDevelopmentIdentity(env: IdentityBindings): AccessIdentity {
+	const publicAccess = env.DEV_ACCESS_PUBLIC?.trim() ?? "false";
+	if (publicAccess !== "true" && publicAccess !== "false") {
+		throw new AppError(
+			503,
+			"AUTH_NOT_CONFIGURED",
+			"DEV_ACCESS_PUBLIC은 true 또는 false여야 합니다.",
+		);
+	}
+	if (publicAccess === "true") {
+		throw new AppError(
+			401,
+			"UNAUTHENTICATED",
+			"Public 개발 접근에는 인증 사용자가 없습니다.",
+		);
+	}
 	const email = env.DEV_USER_EMAIL?.trim().toLowerCase();
 	const role = env.DEV_ACCESS_ROLE?.trim();
 	if (!email?.includes("@") || !role) {
@@ -156,18 +172,11 @@ function resolveDevelopmentIdentity(env: IdentityBindings): AccessIdentity {
 			"DEV_USER_EMAIL과 DEV_ACCESS_ROLE을 설정해야 합니다.",
 		);
 	}
-	if (role === "public") {
-		throw new AppError(
-			401,
-			"UNAUTHENTICATED",
-			"Public 개발 역할에는 인증 사용자가 없습니다.",
-		);
-	}
 	if (!accessRoles.includes(role as AccessRole)) {
 		throw new AppError(
 			503,
 			"AUTH_NOT_CONFIGURED",
-			"DEV_ACCESS_ROLE은 owner, admin, user, public 중 하나여야 합니다.",
+			"DEV_ACCESS_ROLE은 owner, admin, member 중 하나여야 합니다.",
 		);
 	}
 	return { email, role: role as AccessRole };
@@ -195,7 +204,7 @@ function assertRouteRole(pathname: string, role: AccessRole): void {
 	}
 	if (
 		(pathname === "/api/admin" || pathname.startsWith("/api/admin/")) &&
-		role === "user"
+		role === "member"
 	) {
 		throw new AppError(403, "FORBIDDEN", "Admin 권한이 필요합니다.");
 	}

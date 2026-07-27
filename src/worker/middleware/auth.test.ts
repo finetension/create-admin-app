@@ -11,7 +11,7 @@ const sharedBindings = {
 	ACCESS_ACCOUNT_ID: "a".repeat(32),
 	ACCESS_GROUP_OWNER_ID: "owner-group",
 	ACCESS_GROUP_ADMIN_ID: "admin-group",
-	ACCESS_GROUP_USER_ID: "user-group",
+	ACCESS_GROUP_MEMBER_ID: "member-group",
 	ACCESS_BOOTSTRAP_OWNER_EMAIL: "founder@example.com",
 	ACCESS_MANAGEMENT_TOKEN: "test-token",
 	ACCESS_TEAM_DOMAIN: "team.cloudflareaccess.com",
@@ -30,6 +30,7 @@ const developmentBindings = {
 	ENVIRONMENT: "development",
 	DEV_USER_EMAIL: "founder@example.com",
 	DEV_ACCESS_ROLE: "owner",
+	DEV_ACCESS_PUBLIC: "false",
 } satisfies IdentityBindings;
 
 describe("Access identity boundary", () => {
@@ -114,7 +115,7 @@ describe("Access identity boundary", () => {
 				new Request("http://localhost/api/me", {
 					headers: {
 						"X-Dev-User": "outsider@example.com",
-						"X-Dev-Role": "user",
+						"X-Dev-Role": "member",
 					},
 				}),
 				developmentBindings,
@@ -129,7 +130,7 @@ describe("Access identity boundary", () => {
 		await expect(
 			resolveIdentity(new Request("http://localhost/api/me"), {
 				...developmentBindings,
-				DEV_ACCESS_ROLE: "public",
+				DEV_ACCESS_PUBLIC: "true",
 			}),
 		).rejects.toMatchObject({
 			status: 401,

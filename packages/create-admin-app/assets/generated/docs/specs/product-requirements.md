@@ -25,7 +25,7 @@ Define one end-to-end workflow before adding generic modules.
 ## Out of scope
 
 - Multi-tenancy or workspace switching
-- Custom roles, resource permissions, or a permission builder beyond fixed Owner, Admin, User, and Public boundaries
+- Custom roles, resource permissions, or a permission builder beyond fixed Owner, Admin, and Member roles plus explicit public routes
 - Generic records, custom fields, or runtime module builders
 - Reimplementing information already handled well by an existing platform
 

@@ -14,7 +14,7 @@
 
 ## 2. 대상 팀과 운영 모델
 
-- 공동창업자에 가까운 5인 미만의 신뢰 팀과 명시적인 Owner·Admin·User 책임 경계
+- 공동창업자에 가까운 5인 미만의 신뢰 팀과 명시적인 Owner·Admin·Member 책임 경계
 - 개발자와 비개발자 모두 로컬 코딩 에이전트로 기능을 추가하고 오류를 수정
 - 저장소 하나가 회사 하나, 앱 하나, Cloudflare 배포 하나, 기준 D1 하나를 의미
 - 다른 회사나 격리가 필요한 운영 단위는 새 프로젝트로 생성
@@ -48,14 +48,14 @@
 
 - 배포된 호스트는 Cloudflare Access로 보호한다.
 - 기본 로그인 방식은 Cloudflare Access One-time PIN이며 별도 OAuth 앱을 요구하지 않는다. 신규 Zero Trust organization에서 OTP가 기본 생성되지 않으므로 Application Deploy workflow가 기존 IdP를 보존하면서 OTP identity provider를 멱등하게 보장한다.
-- `public`은 역할이 아니라 인증 없는 명시적 경로다. 인증 사용자는 서로 배타적인 `owner`, `admin`, `user` 중 하나다.
+- `public`은 역할이 아니라 인증 없는 명시적 접근 범위다. 인증 사용자는 서로 배타적인 `owner`, `admin`, `member` 중 하나다.
 - Cloudflare Access의 재사용 가능 그룹과 경로별 application·policy가 운영 인가의 유일한 기준이다. D1에는 현재 역할을 복제하지 않는다.
-- 일반 경로는 Owner·Admin·User, `/admin/*`와 `/api/admin/*`는 Owner·Admin, `/owner/*`와 `/api/owner/*`는 Owner만 허용한다. `/public/*`와 `/api/public/*`만 인증 없이 공개한다.
+- 일반 경로는 Owner·Admin·Member, `/admin/*`와 `/api/admin/*`는 Owner·Admin, `/owner/*`와 `/api/owner/*`는 Owner만 허용한다. `/public/*`와 `/api/public/*`만 인증 없이 공개한다.
 - Worker는 `Cf-Access-Jwt-Assertion`의 서명, issuer와 요청 경로에 해당하는 application audience를 검증한다. 검증된 이메일은 사용자 식별과 audit actor로 사용한다.
 - 생성 시 한 명의 `bootstrap_owner_email`을 명시한다. 이 Owner는 CI가 계속 보장하며 앱에서 제거하거나 강등할 수 없다. 마지막 Owner를 제거하는 변경도 거부한다.
 - Owner 전용 API는 Cloudflare Access 그룹의 구성원을 조회·변경하고, 변경 대상 사용자의 Access 세션을 native revoke한 뒤 D1에 감사 로그를 남긴다.
-- Owner·Admin·User 그룹의 동적 구성원은 Cloudflare가 기준이며 Git이나 D1에 복제하지 않는다.
-- 개발 환경은 `owner`, `admin`, `user`, `public` 역할을 명시적으로 모사할 수 있다. 이 모사는 local database에서만 허용하고 운영 Worker는 개발용 역할 입력을 거부한다.
+- Owner·Admin·Member 그룹의 동적 구성원은 Cloudflare가 기준이며 Git이나 D1에 복제하지 않는다.
+- 개발 환경은 `owner`, `admin`, `member` 역할과 비인증 public 접근을 명시적으로 모사할 수 있다. 이 모사는 local database에서만 허용하고 운영 Worker는 개발용 역할·접근 입력을 거부한다.
 - Zero Trust organization 자체가 없는 account는 Dashboard에서 team name과 plan을 한 번 설정해야 한다. 인터랙티브 deploy는 해당 온보딩으로 안내하고, 비인터랙티브 deploy는 URL과 재실행 방법을 가진 구조화 오류로 중단한다.
 
 완료 조건:
@@ -211,7 +211,7 @@ Beestory는 현재 판매 채널 전체의 매출을 안정적으로 추적하�
 ## 8. 기반 단계 완료 조건
 
 - 기존 범용 Content/Marketing/Operations/Files/workspace 런타임과 커스텀 권한 편집기가 없다.
-- Owner·Admin·User·Public 경계가 Cloudflare Access 경로 정책으로 동작하고 Owner가 앱에서 구성원을 관리할 수 있다.
+- Owner·Admin·Member 역할과 명시적 public 접근 범위가 Cloudflare Access 경로 정책으로 동작하고 Owner가 앱에서 구성원을 관리할 수 있다.
 - 최소 인증 앱이 `shared/ui`의 HeroUI 기본 스타일로 실행된다.
 - 새 local DB는 공통 기반 테이블만 생성한다.
 - 기존 배포 DB의 레거시 테이블은 이번 변경에서 파괴적으로 삭제하지 않는다.

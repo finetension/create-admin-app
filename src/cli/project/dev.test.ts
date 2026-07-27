@@ -36,7 +36,10 @@ describe("development command", () => {
 
 	it("validates explicit local roles", () => {
 		expect(parseDevelopmentAccessRole("owner")).toBe("owner");
-		expect(parseDevelopmentAccessRole("public")).toBe("public");
+		expect(parseDevelopmentAccessRole("member")).toBe("member");
+		expect(() => parseDevelopmentAccessRole("public")).toThrow(
+			"public은 역할이 아니라 비인증 접근 범위",
+		);
 		expect(() => parseDevelopmentAccessRole("manager")).toThrow(
 			"지원하지 않는 개발 역할",
 		);
@@ -95,17 +98,47 @@ describe("development database lifecycle", () => {
 		);
 	});
 
-	it("rejects role simulation with remote D1", async () => {
+	it("passes unauthenticated public access to local Vite", async () => {
+		const run = vi.fn(async () => ({ stdout: "", stderr: "", exitCode: 0 }));
+		await startDevelopmentServer(
+			{ migrate: false, database: "local", public: true },
+			{
+				run,
+				resolveMode: async () => ({ mode: "local", reason: "explicit" }),
+			},
+		);
+		expect(run).toHaveBeenCalledWith(
+			["exec", "vite"],
+			expect.objectContaining({
+				env: expect.objectContaining({ PLATFORM_ACCESS_PUBLIC: "true" }),
+			}),
+		);
+	});
+
+	it("rejects conflicting local access options", async () => {
 		await expect(
 			startDevelopmentServer(
-				{ database: "remote", role: "user" },
+				{ database: "local", role: "member", public: true },
+				{
+					resolveMode: async () => ({ mode: "local", reason: "explicit" }),
+				},
+			),
+		).rejects.toMatchObject({
+			code: "conflicting_development_access",
+		});
+	});
+
+	it("rejects access simulation with remote D1", async () => {
+		await expect(
+			startDevelopmentServer(
+				{ database: "remote", role: "member" },
 				{
 					machine: () => false,
 					resolveMode: async () => ({ mode: "remote", reason: "explicit" }),
 				},
 			),
 		).rejects.toMatchObject({
-			code: "development_role_requires_local_database",
+			code: "development_access_requires_local_database",
 		});
 	});
 

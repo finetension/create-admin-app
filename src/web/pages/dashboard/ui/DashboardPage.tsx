@@ -13,7 +13,8 @@ import {
 const foundations = [
 	{
 		title: "역할 기반 접근",
-		description: "Cloudflare Access가 Owner, Admin, User 경계를 적용합니다.",
+		description:
+			"Cloudflare Access가 소유자, 관리자, 구성원 경계를 적용합니다.",
 		icon: ShieldCheckIcon,
 	},
 	{

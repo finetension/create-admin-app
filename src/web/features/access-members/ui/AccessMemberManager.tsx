@@ -24,9 +24,9 @@ import {
 } from "../../../shared/ui";
 
 const roleOptions = [
-	{ value: "user", label: "User" },
-	{ value: "admin", label: "Admin" },
-	{ value: "owner", label: "Owner" },
+	{ value: "member", label: "구성원" },
+	{ value: "admin", label: "관리자" },
+	{ value: "owner", label: "소유자" },
 ];
 
 function errorMessage(error: unknown): string {
@@ -61,7 +61,7 @@ function MemberCard({
 						</Typography.Paragraph>
 						<Typography.Paragraph color="muted" size="xs">
 							{member.bootstrap
-								? "초기 Owner · 제거하거나 강등할 수 없음"
+								? "초기 소유자 · 제거하거나 강등할 수 없음"
 								: "Cloudflare Access 멤버"}
 						</Typography.Paragraph>
 					</div>
@@ -133,7 +133,7 @@ function MemberCard({
 export function AccessMemberManager() {
 	const queryClient = useQueryClient();
 	const [email, setEmail] = useState("");
-	const [role, setRole] = useState<AccessRole>("user");
+	const [role, setRole] = useState<AccessRole>("member");
 	const members = useQuery({
 		queryKey: ["access-members"],
 		queryFn: api.accessMembers.list,
@@ -151,7 +151,7 @@ export function AccessMemberManager() {
 		onSuccess: (data: AccessMembers) => {
 			queryClient.setQueryData(["access-members"], data);
 			setEmail("");
-			setRole("user");
+			setRole("member");
 		},
 	});
 

@@ -45,11 +45,11 @@ Token은 다음 순서로 만든다.
 
 이 템플릿은 Workers Scripts, D1, Workers KV, Access와 Zone·route를 포함해 계정과 Zone 전반을 생성·변경·삭제할 수 있다. 개별 권한을 매번 찾지 않는 대신 유출 시 영향 범위가 큰 의도적인 운영 선택이다. 다른 Account API Token의 목록·변경은 별도 권한이며 이 프로젝트의 배포에는 필요하지 않다. 프로젝트 CLI는 token을 보관하기 전에 필요한 API를 읽기 전용으로 확인하고 로컬 파일에는 남기지 않는다. 의심스러운 노출이나 팀 운영 변경이 있으면 Cloudflare에서 token을 교체하고 OS credential store와 GitHub repository secret을 함께 갱신한다.
 
-Access 로그인은 별도 OAuth secret이 필요 없는 [One-time PIN](https://developers.cloudflare.com/cloudflare-one/integrations/identity-providers/one-time-pin/)을 기본으로 한다. 로그인 허용 대상은 Owner·Admin·User Access 그룹의 구성원이다. 신규 Zero Trust organization은 OTP를 자동으로 만들지 않으므로 Application Deploy workflow가 기존 identity provider를 보존하면서 OTP를 멱등하게 추가한다. 공통 기반은 R2를 사용하지 않는다.
+Access 로그인은 별도 OAuth secret이 필요 없는 [One-time PIN](https://developers.cloudflare.com/cloudflare-one/integrations/identity-providers/one-time-pin/)을 기본으로 한다. 로그인 허용 대상은 Owner·Admin·Member Access 그룹의 구성원이다. 신규 Zero Trust organization은 OTP를 자동으로 만들지 않으므로 Application Deploy workflow가 기존 identity provider를 보존하면서 OTP를 멱등하게 추가한다. 공통 기반은 R2를 사용하지 않는다.
 
 Zero Trust organization 자체가 없는 account는 Dashboard에서 [team name과 plan을 한 번 설정](https://developers.cloudflare.com/learning-paths/clientless-access/initial-setup/create-zero-trust-org/)해야 한다. 인터랙티브 deploy는 onboarding URL을 열고 완료 뒤 read-only로 재검사한다. machine mode는 `cloudflare_zero_trust_setup_required`, URL과 재실행 hint를 출력하고 외부 변경 전에 종료한다.
 
-Cloudflare Access가 운영 인증·인가 게이트웨이다. 배포는 Bootstrap Owner를 Owner 그룹에 보장하고 동적 구성원은 보존한다. Base application은 Owner·Admin·User, Admin application은 Owner·Admin, Owner application은 Owner 그룹을 허용한다. Public application은 데이터가 없는 빌드 산출물 `/assets/*`와 명시적 공개 경로 `/public/*`, `/api/public/*`만 bypass한다. 역할별 HTML 경로와 API는 계속 해당 Access application이 보호한다. Access API는 빈 `include` 그룹을 허용하지 않으므로 멤버가 없는 역할에는 로그인할 수 없는 예약된 `example.com` placeholder 이메일 하나를 둔다. 배포과 Owner API는 이 규칙을 자동으로 정규화하고 멤버 목록·역할 판정·상태의 인원수에서는 제외한다. Worker 런타임에는 assertion 검증에 필요한 Access team domain과 Base·Admin·Owner audience를 전달하고 이메일이나 역할 목록은 전달하지 않는다. Worker는 검증된 이메일을 사용자 식별과 audit에 사용한다.
+Cloudflare Access가 운영 인증·인가 게이트웨이다. 배포는 Bootstrap Owner를 Owner 그룹에 보장하고 동적 구성원은 보존한다. Base application은 Owner·Admin·Member, Admin application은 Owner·Admin, Owner application은 Owner 그룹을 허용한다. Public application은 역할이 아니라 데이터가 없는 빌드 산출물 `/assets/*`와 명시적 공개 경로 `/public/*`, `/api/public/*`만 bypass하는 접근 범위다. 역할별 HTML 경로와 API는 계속 해당 Access application이 보호한다. Access API는 빈 `include` 그룹을 허용하지 않으므로 멤버가 없는 역할에는 로그인할 수 없는 예약된 `example.com` placeholder 이메일 하나를 둔다. 배포와 Owner API는 이 규칙을 자동으로 정규화하고 멤버 목록·역할 판정·상태의 인원수에서는 제외한다. Worker 런타임에는 assertion 검증에 필요한 Access team domain과 Base·Admin·Owner audience를 전달하고 이메일이나 역할 목록은 전달하지 않는다. Worker는 검증된 이메일을 사용자 식별과 audit에 사용한다.
 
 Owner 전용 API는 `ACCESS_MANAGEMENT_TOKEN`으로 서버에 고정된 세 그룹만 조회·수정하고 대상 사용자의 Access 세션을 native revoke한다. Cloudflare의 per-user revoke는 같은 account의 Access application 전체에 적용되므로 UI가 이 범위를 명시한다. account ID와 group ID를 클라이언트 입력으로 받지 않는다. 이 런타임 mutation은 D1 감사 로그를 남기는 좁은 제품 행위이며 D1 migration, Worker·Access application 배포와 철거의 Actions-only 원칙을 완화하지 않는다.
 
@@ -79,7 +79,7 @@ machine mode의 `logs`는 완전한 Worker 이벤트마다 stdout에 NDJSON 한 
 
 ### 철거
 
-`application-destroy.yml`에서 `destroy`를 선택하고 정규화된 서비스 이름을 정확히 입력한다. 기본값은 경로별 Access application·policy와 Worker만 삭제하고 D1과 Owner·Admin·User 그룹 구성원을 보존한다. `include_data`를 명시적으로 선택하면 D1과 역할 그룹도 복구 보장 없이 삭제한다. 성공한 workflow는 lifecycle을 `destroyed`로 커밋하고 로컬 명령은 이 commit을 fast-forward한다. 철거 후 다시 운영하면 Application Deploy가 보존한 역할 그룹을 재사용한다.
+`application-destroy.yml`에서 `destroy`를 선택하고 정규화된 서비스 이름을 정확히 입력한다. 기본값은 경로별 Access application·policy와 Worker만 삭제하고 D1과 Owner·Admin·Member 그룹 구성원을 보존한다. `include_data`를 명시적으로 선택하면 D1과 역할 그룹도 복구 보장 없이 삭제한다. 성공한 workflow는 lifecycle을 `destroyed`로 커밋하고 로컬 명령은 이 commit을 fast-forward한다. 철거 후 다시 운영하면 Application Deploy가 보존한 역할 그룹을 재사용한다.
 
 ## 인프라 상태 원칙
 

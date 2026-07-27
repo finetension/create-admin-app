@@ -15,6 +15,12 @@ import {
 	UsersIcon,
 } from "../../../shared/ui";
 
+const roleLabels = {
+	owner: "소유자",
+	admin: "관리자",
+	member: "구성원",
+} satisfies Record<CurrentUser["role"], string>;
+
 function Navigation({
 	user,
 	onNavigate,
@@ -62,7 +68,7 @@ function IdentityCard({ user }: { user: CurrentUser }) {
 						{user.email}
 					</Typography.Paragraph>
 					<Typography.Paragraph color="muted" size="xs">
-						{user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+						{roleLabels[user.role]}
 					</Typography.Paragraph>
 				</div>
 			</Card.Content>

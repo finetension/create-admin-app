@@ -158,7 +158,7 @@ export interface AccessConfig {
 	groupNames: {
 		owner: string;
 		admin: string;
-		user: string;
+		member: string;
 	};
 	applicationNames: {
 		base: string;
@@ -381,7 +381,7 @@ export function createDeploymentConfig(
 			groupNames: {
 				owner: `${resourceName} · Owners`,
 				admin: `${resourceName} · Admins`,
-				user: `${resourceName} · Users`,
+				member: `${resourceName} · Members`,
 			},
 			applicationNames: {
 				base: resourceName,

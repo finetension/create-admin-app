@@ -6,6 +6,7 @@ const baseEnv = {
 	APP_NAME: "Management",
 	DEV_USER_EMAIL: "founder@example.com",
 	DEV_ACCESS_ROLE: "owner",
+	DEV_ACCESS_PUBLIC: "false",
 	ACCESS_TEAM_DOMAIN: "",
 	ACCESS_AUD_BASE: "",
 	ACCESS_AUD_ADMIN: "",
@@ -13,7 +14,7 @@ const baseEnv = {
 	ACCESS_ACCOUNT_ID: "a".repeat(32),
 	ACCESS_GROUP_OWNER_ID: "owner-group",
 	ACCESS_GROUP_ADMIN_ID: "admin-group",
-	ACCESS_GROUP_USER_ID: "user-group",
+	ACCESS_GROUP_MEMBER_ID: "member-group",
 	ACCESS_BOOTSTRAP_OWNER_EMAIL: "founder@example.com",
 	ACCESS_MANAGEMENT_TOKEN: "test-token",
 };
@@ -54,9 +55,9 @@ function createCloudflareFetch() {
 			exclude: [],
 			require: [],
 		},
-		"user-group": {
-			id: "user-group",
-			name: "Users",
+		"member-group": {
+			id: "member-group",
+			name: "Members",
 			include: [],
 			exclude: [],
 			require: [],
@@ -140,7 +141,7 @@ describe("Worker role routes", () => {
 			{
 				method: "PUT",
 				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ role: "user" }),
+				body: JSON.stringify({ role: "member" }),
 			},
 			{ ...baseEnv, APP_DB: database.db },
 		);

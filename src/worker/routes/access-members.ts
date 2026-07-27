@@ -33,7 +33,7 @@ async function updateInput(request: Request) {
 		throw new AppError(
 			400,
 			"INVALID_MEMBER_INPUT",
-			"owner, admin 또는 user 역할이 필요합니다.",
+			"owner, admin 또는 member 역할이 필요합니다.",
 		);
 	}
 }

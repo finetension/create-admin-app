@@ -38,7 +38,7 @@ export interface AccessManagementBindings {
 	ACCESS_ACCOUNT_ID: string;
 	ACCESS_GROUP_OWNER_ID: string;
 	ACCESS_GROUP_ADMIN_ID: string;
-	ACCESS_GROUP_USER_ID: string;
+	ACCESS_GROUP_MEMBER_ID: string;
 	ACCESS_BOOTSTRAP_OWNER_EMAIL: string;
 	ACCESS_MANAGEMENT_TOKEN?: string;
 }
@@ -59,7 +59,7 @@ function configuredBindings(env: AccessManagementBindings) {
 	const groupIds = {
 		owner: env.ACCESS_GROUP_OWNER_ID?.trim(),
 		admin: env.ACCESS_GROUP_ADMIN_ID?.trim(),
-		user: env.ACCESS_GROUP_USER_ID?.trim(),
+		member: env.ACCESS_GROUP_MEMBER_ID?.trim(),
 	};
 	if (
 		!token ||
@@ -82,7 +82,7 @@ function configuredBindings(env: AccessManagementBindings) {
 }
 
 function roleCacheKey(env: AccessManagementBindings, email: string): string {
-	return `${env.ACCESS_ACCOUNT_ID}:${env.ACCESS_GROUP_OWNER_ID}:${env.ACCESS_GROUP_ADMIN_ID}:${env.ACCESS_GROUP_USER_ID}:${email}`;
+	return `${env.ACCESS_ACCOUNT_ID}:${env.ACCESS_GROUP_OWNER_ID}:${env.ACCESS_GROUP_ADMIN_ID}:${env.ACCESS_GROUP_MEMBER_ID}:${email}`;
 }
 
 function emailFromRule(rule: Record<string, unknown>): string | undefined {
@@ -213,11 +213,11 @@ function membersFromGroups(
 			rolesByEmail.set(email, [...(rolesByEmail.get(email) ?? []), role]);
 		}
 	}
-	const priority: AccessRole[] = ["owner", "admin", "user"];
+	const priority: AccessRole[] = ["owner", "admin", "member"];
 	return [...rolesByEmail.entries()]
 		.map(([email, roles]) => ({
 			email,
-			role: priority.find((role) => roles.includes(role)) ?? "user",
+			role: priority.find((role) => roles.includes(role)) ?? "member",
 			bootstrap: email === bootstrapOwnerEmail,
 		}))
 		.sort((left, right) => left.email.localeCompare(right.email));

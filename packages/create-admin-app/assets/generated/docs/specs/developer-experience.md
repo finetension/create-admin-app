@@ -76,8 +76,9 @@ The generator completes before this repository is shown to the user. A completed
 - After deployment, it uses the canonical remote D1 and removes stale persistent local D1 data.
 - An explicit `--database local|remote` override is diagnostic, not a second production mode.
 - Machine mode never starts browser-based Cloudflare Access login; it returns an actionable error instead.
-- `--database local --role owner|admin|user|public` verifies fixed role boundaries without request-header impersonation.
-- An explicit local role is rejected with remote D1 development.
+- `--database local --role owner|admin|member` verifies fixed authenticated role boundaries without request-header impersonation.
+- `--database local --public` verifies unauthenticated access; public is an access scope, not a role.
+- An explicit local role or public access mode is rejected with remote D1 development.
 
 Tests always use an ephemeral local D1 and never production data.
 

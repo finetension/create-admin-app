@@ -58,7 +58,7 @@ export function createDeploymentWranglerConfig(
 			ACCESS_ACCOUNT_ID: config.accountId,
 			ACCESS_GROUP_OWNER_ID: access.groupIds.owner,
 			ACCESS_GROUP_ADMIN_ID: access.groupIds.admin,
-			ACCESS_GROUP_USER_ID: access.groupIds.user,
+			ACCESS_GROUP_MEMBER_ID: access.groupIds.member,
 			ACCESS_BOOTSTRAP_OWNER_EMAIL: config.bootstrapOwnerEmail,
 		},
 		observability: {

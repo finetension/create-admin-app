@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
 	type AccessRole,
 	accessEmptyGroupEmails,
+	accessRoles,
 	isAccessEmptyGroupEmail,
 } from "../../shared/contracts/platform.ts";
 import type { DeploymentConfig } from "../core/config.ts";
@@ -9,7 +10,6 @@ import { resolveCloudflareApiToken } from "../core/credentials.ts";
 import { logger } from "../core/logger.ts";
 import { CloudflareApi, CloudflareApiError } from "./api.ts";
 
-const accessRoles = ["owner", "admin", "user"] as const;
 const accessApplicationKinds = ["base", "admin", "owner", "public"] as const;
 type AccessApplicationKind = (typeof accessApplicationKinds)[number];
 
@@ -118,7 +118,7 @@ function applicationDefinitions(
 			policyName: config.access.policyNames.base,
 			destinations: [hostname],
 			decision: "allow",
-			groupRoles: ["owner", "admin", "user"],
+			groupRoles: ["owner", "admin", "member"],
 		},
 		{
 			kind: "admin",
@@ -204,15 +204,23 @@ function findApplications(
 	);
 }
 
+function findGroup(
+	groups: AccessGroup[],
+	config: DeploymentConfig,
+	role: AccessRole,
+): AccessGroup | undefined {
+	return groups.find(
+		(candidate) => candidate.name === config.access.groupNames[role],
+	);
+}
+
 function findGroups(
 	groups: AccessGroup[],
 	config: DeploymentConfig,
 ): Partial<Record<AccessRole, AccessGroup>> {
 	return Object.fromEntries(
 		accessRoles.flatMap((role) => {
-			const group = groups.find(
-				(candidate) => candidate.name === config.access.groupNames[role],
-			);
+			const group = findGroup(groups, config, role);
 			return group ? [[role, group]] : [];
 		}),
 	);
@@ -490,9 +498,7 @@ async function ensureGroups(
 	const groups = {} as Record<AccessRole, AccessGroup>;
 	const assignedEmails = new Set<string>();
 	for (const role of accessRoles) {
-		const existing = existingGroups.find(
-			(group) => group.name === config.access.groupNames[role],
-		);
+		const existing = findGroup(existingGroups, config, role);
 		const otherBootstrapRole = role !== "owner";
 		const currentRules = existing?.include ?? [];
 		const include = currentRules.flatMap((rule) => {

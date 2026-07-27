@@ -25,7 +25,7 @@ function deploymentConfig(): DeploymentConfig {
 			groupNames: {
 				owner: "Management · Owners",
 				admin: "Management · Admins",
-				user: "Management · Users",
+				member: "Management · Members",
 			},
 			applicationNames: {
 				base: "Management",
@@ -78,11 +78,14 @@ describe("Access convergence", () => {
 				if (path.startsWith("/access/groups/") || path === "/access/groups") {
 					const role = String(body.name).includes("Admins")
 						? "admin"
-						: String(body.name).includes("Users")
-							? "user"
+						: String(body.name).includes("Members")
+							? "member"
 							: "owner";
 					return {
-						id: `${role}-group`,
+						id:
+							path === "/access/groups"
+								? `${role}-group`
+								: path.split("/").at(-1),
 						...body,
 					};
 				}
@@ -113,7 +116,7 @@ describe("Access convergence", () => {
 		expect(result.groupIds).toEqual({
 			owner: "owner-group",
 			admin: "admin-group",
-			user: "user-group",
+			member: "member-group",
 		});
 		const groupWrites = request.mock.calls.filter(
 			([path, options]) =>

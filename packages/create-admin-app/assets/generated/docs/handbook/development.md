@@ -36,7 +36,7 @@ Do not create placeholder slices. Add a real business capability as one reviewab
 
 ## Product boundary
 
-Define the first real company workflow in `docs/specs/product-requirements.md`. The fixed Owner, Admin, User, and Public boundaries are infrastructure, not a customizable permission builder. Do not add tenancy, workspaces, custom roles, resource permissions, generic records, custom fields, workflow builders, or runtime schema engines without an explicit product decision.
+Define the first real company workflow in `docs/specs/product-requirements.md`. The fixed Owner, Admin, and Member roles plus explicit public routes are infrastructure, not a customizable permission builder. Do not add tenancy, workspaces, custom roles, resource permissions, generic records, custom fields, workflow builders, or runtime schema engines without an explicit product decision.
 
 Existing platforms remain authoritative where they already present the needed information. Build the missing aggregation, calculation, decision, or operation instead of cloning a source platform.
 
@@ -56,7 +56,7 @@ ESLint rejects direct HeroUI and Lucide imports outside the adapter and raw inte
 
 Production authentication and authorization are enforced by Cloudflare Access role groups and path-specific applications. The Worker verifies the route-specific audience, resolves the email's Access role, and stores only identity and audit events in D1.
 
-Local development has no Access gateway. `pnpm cli dev --database local --role owner|admin|user|public` injects an explicit local role with the configured bootstrap Owner email. Request headers cannot select an identity or role. An explicit role cannot be combined with remote D1 development.
+Local development has no Access gateway. `pnpm cli dev --database local --role owner|admin|member` injects an explicit authenticated role with the configured bootstrap Owner email. `pnpm cli dev --database local --public` simulates unauthenticated access. Request headers cannot select an identity or role. An explicit role or public access mode cannot be combined with remote D1 development.
 
 The Owner team screen changes only the three project Access groups, invokes Cloudflare's account-wide per-user Access session revocation, and writes the actor and change to D1 audit logs. The bootstrap Owner and final Owner cannot be removed or demoted.
 

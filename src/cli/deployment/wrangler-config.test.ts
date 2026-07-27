@@ -34,7 +34,7 @@ describe("deployment Wrangler config", () => {
 				groupIds: {
 					owner: "owner-group",
 					admin: "admin-group",
-					user: "user-group",
+					member: "member-group",
 				},
 			} satisfies AccessResult,
 			{ name: "management-db", id: "database" } satisfies D1Resource,
@@ -60,10 +60,11 @@ describe("deployment Wrangler config", () => {
 			ACCESS_ACCOUNT_ID: "a".repeat(32),
 			ACCESS_GROUP_OWNER_ID: "owner-group",
 			ACCESS_GROUP_ADMIN_ID: "admin-group",
-			ACCESS_GROUP_USER_ID: "user-group",
+			ACCESS_GROUP_MEMBER_ID: "member-group",
 			ACCESS_BOOTSTRAP_OWNER_EMAIL: "admin@example.com",
 		});
 		expect("DEV_ACCESS_ROLE" in generated.vars).toBe(false);
+		expect("DEV_ACCESS_PUBLIC" in generated.vars).toBe(false);
 	});
 
 	it("enables workers.dev without creating a custom-domain route", () => {
@@ -93,7 +94,7 @@ describe("deployment Wrangler config", () => {
 				groupIds: {
 					owner: "owner-group",
 					admin: "admin-group",
-					user: "user-group",
+					member: "member-group",
 				},
 			} satisfies AccessResult,
 			{ name: "management-db", id: "database" } satisfies D1Resource,

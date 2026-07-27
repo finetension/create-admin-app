@@ -160,16 +160,16 @@ Wrangler가 하나의 event를 여러 줄 JSON으로 출력하더라도 CLI는 �
 
 첫 배포 이후 `dev`는 로컬 Vite Worker에 canonical remote D1 binding을 연결한다. Cloudflare 계정 인증이 없고 TTY라면 Wrangler의 브라우저 로그인을 시작한다. machine mode에서는 브라우저를 열지 않고 `access_login_required` 설정 오류와 `pnpm cli dev --interactive` 실행 hint를 반환한다. 이 경로는 배포된 Worker나 실제 Access 역할 세션을 거치지 않으며 로컬 actor는 기본 Owner로 고정된다. 공통 기반은 remote development용 별도 service token을 만들거나 저장하지 않는다.
 
-역할별 화면과 API를 확인할 때는 local database를 명시하고 역할을 선택한다.
+역할별 화면과 API를 확인할 때는 local database를 명시하고 인증 역할 또는 public 접근을 선택한다.
 
 ```bash
 pnpm cli dev --database local --role owner
 pnpm cli dev --database local --role admin
-pnpm cli dev --database local --role user
-pnpm cli dev --database local --role public
+pnpm cli dev --database local --role member
+pnpm cli dev --database local --public
 ```
 
-`--role`은 local database에서만 허용한다. `owner`, `admin`, `user`는 Bootstrap Owner 이메일을 개발 actor로 사용하고 `public`은 인증 정보 없이 요청한다. 자동 remote 개발이나 명시적인 `--database remote`와 함께 사용하면 운영 역할을 가장하지 않고 사용법 오류로 실패한다.
+`--role`과 `--public`은 local database에서만 허용하며 함께 사용할 수 없다. `owner`, `admin`, `member`는 Bootstrap Owner 이메일을 개발 actor로 사용하고 `--public`은 인증 정보 없이 요청한다. 자동 remote 개발이나 명시적인 `--database remote`와 함께 사용하면 운영 역할이나 접근 상태를 가장하지 않고 사용법 오류로 실패한다.
 
 ### Actions 전용 내부 명령
 
@@ -349,7 +349,7 @@ Cloudflare token이 없고 인터랙티브라면 Account API Tokens 페이지를
 - Cloudflare account
 - `workers.dev` 또는 custom hostname
 - Bootstrap Owner 이메일
-- Owner·Admin·User 그룹과 Base·Admin·Owner·Public 경로 정책
+- Owner·Admin·Member 그룹과 Base·Admin·Owner application 및 명시적 Public 경로 정책
 - 수정·commit할 파일
 - 변경이 있을 때 사용할 commit message
 - 생성하거나 갱신할 GitHub repository secret과 Worker `ACCESS_MANAGEMENT_TOKEN` secret 주입

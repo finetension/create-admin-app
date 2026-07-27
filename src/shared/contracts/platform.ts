@@ -1,12 +1,11 @@
-export const accessRoles = ["owner", "admin", "user"] as const;
+export const accessRoles = ["owner", "admin", "member"] as const;
 
 export type AccessRole = (typeof accessRoles)[number];
-export type DevelopmentAccessRole = AccessRole | "public";
 
 export const accessEmptyGroupEmails = {
 	owner: "create-admin-app-unassigned-owner@example.com",
 	admin: "create-admin-app-unassigned-admin@example.com",
-	user: "create-admin-app-unassigned-user@example.com",
+	member: "create-admin-app-unassigned-member@example.com",
 } as const satisfies Record<AccessRole, string>;
 
 export function isAccessEmptyGroupEmail(email: string): boolean {

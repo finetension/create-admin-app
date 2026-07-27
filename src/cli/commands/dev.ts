@@ -56,10 +56,14 @@ export default defineCommand({
 			valueHint: "mode",
 		},
 		role: {
-			type: "enum",
-			options: ["owner", "admin", "user", "public"],
+			type: "string",
 			description: "local D1에서 확인할 Access 역할 (기본 owner)",
-			valueHint: "role",
+			valueHint: "owner|admin|member",
+		},
+		public: {
+			type: "boolean",
+			description: "local D1에서 비인증 public 접근을 확인합니다.",
+			default: false,
 		},
 	},
 	async run({ args }) {
@@ -72,6 +76,7 @@ export default defineCommand({
 			open: args.open,
 			database: parseDevelopmentDatabaseMode(args.database),
 			role: parseDevelopmentAccessRole(args.role),
+			public: args.public,
 		});
 	},
 });

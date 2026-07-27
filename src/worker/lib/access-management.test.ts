@@ -6,7 +6,7 @@ const bindings = {
 	ACCESS_ACCOUNT_ID: "a".repeat(32),
 	ACCESS_GROUP_OWNER_ID: "owner-group",
 	ACCESS_GROUP_ADMIN_ID: "admin-group",
-	ACCESS_GROUP_USER_ID: "user-group",
+	ACCESS_GROUP_MEMBER_ID: "member-group",
 	ACCESS_BOOTSTRAP_OWNER_EMAIL: "founder@example.com",
 	ACCESS_MANAGEMENT_TOKEN: "secret-token",
 };
@@ -18,7 +18,7 @@ function emailRules(emails: string[]) {
 function cloudflareMock(initial: {
 	owner: string[];
 	admin: string[];
-	user: string[];
+	member: string[];
 }) {
 	const groups = {
 		"owner-group": {
@@ -35,10 +35,10 @@ function cloudflareMock(initial: {
 			exclude: [],
 			require: [],
 		},
-		"user-group": {
-			id: "user-group",
-			name: "Users",
-			include: emailRules(initial.user),
+		"member-group": {
+			id: "member-group",
+			name: "Members",
+			include: emailRules(initial.member),
 			exclude: [],
 			require: [],
 		},
@@ -78,7 +78,7 @@ describe("Access role management", () => {
 		const mock = cloudflareMock({
 			owner: ["founder@example.com"],
 			admin: ["admin@example.com"],
-			user: [accessEmptyGroupEmails.user],
+			member: [accessEmptyGroupEmails.member],
 		});
 		const members = await createAccessManagementClient(
 			bindings,
@@ -95,7 +95,7 @@ describe("Access role management", () => {
 		const mock = cloudflareMock({
 			owner: ["founder@example.com"],
 			admin: [],
-			user: ["member@example.com"],
+			member: ["member@example.com"],
 		});
 		const members = await createAccessManagementClient(
 			bindings,
@@ -109,8 +109,8 @@ describe("Access role management", () => {
 		expect(mock.groups["admin-group"].include).toEqual(
 			emailRules(["member@example.com"]),
 		);
-		expect(mock.groups["user-group"].include).toEqual(
-			emailRules([accessEmptyGroupEmails.user]),
+		expect(mock.groups["member-group"].include).toEqual(
+			emailRules([accessEmptyGroupEmails.member]),
 		);
 		expect(mock.revokeCount()).toBe(1);
 	});
@@ -119,7 +119,7 @@ describe("Access role management", () => {
 		const mock = cloudflareMock({
 			owner: ["founder@example.com"],
 			admin: [],
-			user: [],
+			member: [],
 		});
 		const client = createAccessManagementClient(bindings, mock.fetcher);
 		await expect(
@@ -135,7 +135,7 @@ describe("Access role management", () => {
 		const mock = cloudflareMock({
 			owner: ["other-owner@example.com"],
 			admin: [],
-			user: [],
+			member: [],
 		});
 		await expect(
 			createAccessManagementClient(bindings, mock.fetcher).remove(
