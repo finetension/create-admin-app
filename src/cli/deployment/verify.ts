@@ -26,6 +26,33 @@ export async function inspectDeploymentEndpoint(
 	};
 }
 
+interface EndpointPropagationOptions {
+	attempts?: number;
+	delayMs?: number;
+	inspect?: typeof inspectDeploymentEndpoint;
+}
+
+export async function inspectDeploymentEndpointAfterPropagation(
+	config: DeploymentConfig,
+	options: EndpointPropagationOptions = {},
+): Promise<VerificationResult> {
+	const attempts = options.attempts ?? 6;
+	const delayMs = options.delayMs ?? 3_000;
+	const inspect = options.inspect ?? inspectDeploymentEndpoint;
+	let result = await inspect(config);
+
+	for (
+		let attempt = 1;
+		attempt < attempts && [404, 530].includes(result.status);
+		attempt += 1
+	) {
+		await new Promise((resolveDelay) => setTimeout(resolveDelay, delayMs));
+		result = await inspect(config);
+	}
+
+	return result;
+}
+
 interface DnsAnswer {
 	type: number;
 	data: string;

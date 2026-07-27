@@ -7,6 +7,7 @@ import {
 	inspectDeploymentStatus,
 	summarizeRedirectLocation,
 } from "./status.ts";
+import { inspectDeploymentEndpointAfterPropagation } from "./verify.ts";
 
 const config = {
 	hostname: "operations-hub.example.com",
@@ -50,6 +51,29 @@ function readyDependencies(): Partial<DeploymentStatusDependencies> {
 }
 
 describe("deployment status", () => {
+	it("waits for a newly deployed Access route to propagate", async () => {
+		const inspect = vi
+			.fn()
+			.mockResolvedValueOnce({ status: 404, location: "" })
+			.mockResolvedValueOnce({ status: 530, location: "" })
+			.mockResolvedValueOnce({
+				status: 302,
+				location: "https://access.example.com/login",
+			});
+
+		await expect(
+			inspectDeploymentEndpointAfterPropagation(config, {
+				attempts: 3,
+				delayMs: 0,
+				inspect,
+			}),
+		).resolves.toEqual({
+			status: 302,
+			location: "https://access.example.com/login",
+		});
+		expect(inspect).toHaveBeenCalledTimes(3);
+	});
+
 	it("redacts opaque Access challenge details from redirect locations", () => {
 		expect(
 			summarizeRedirectLocation(

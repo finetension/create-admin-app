@@ -14,6 +14,7 @@ import {
 import { logger } from "../core/logger.ts";
 import {
 	inspectDeploymentEndpoint,
+	inspectDeploymentEndpointAfterPropagation,
 	type VerificationResult,
 } from "./verify.ts";
 
@@ -48,7 +49,7 @@ export interface DeploymentStatusDependencies {
 	inspectD1: typeof inspectD1;
 	inspectAccess: typeof inspectAccess;
 	inspectAccessManagementSecret: typeof inspectAccessManagementSecret;
-	inspectEndpoint: typeof inspectDeploymentEndpoint;
+	inspectEndpoint: (config: DeploymentConfig) => Promise<VerificationResult>;
 	loadLifecycle: typeof loadInfrastructureLifecycle;
 }
 
@@ -481,16 +482,22 @@ export async function inspectDeploymentStatus(
 	overrides: Partial<DeploymentStatusDependencies> = {},
 ): Promise<DeploymentStatus> {
 	const dependencies = { ...defaultDependencies, ...overrides };
-	const [worker, workerSecret, d1, access, endpoint, lifecycle] =
-		await Promise.all([
-			probe(() => dependencies.inspectWorker(config)),
-			probe(() => dependencies.inspectAccessManagementSecret(config)),
-			probe(() => dependencies.inspectD1(config)),
-			probe(() => dependencies.inspectAccess(config)),
-			probe(() => dependencies.inspectEndpoint(config)),
-			probe(() => dependencies.loadLifecycle()),
-		]);
+	const lifecycle = await probe(() => dependencies.loadLifecycle());
 	const destroyed = lifecycle.value?.production === "destroyed";
+	const deployed = lifecycle.value?.production === "deployed";
+	const [worker, workerSecret, d1, access, endpoint] = await Promise.all([
+		probe(() => dependencies.inspectWorker(config)),
+		probe(() => dependencies.inspectAccessManagementSecret(config)),
+		probe(() => dependencies.inspectD1(config)),
+		probe(() => dependencies.inspectAccess(config)),
+		probe(() =>
+			deployed
+				? inspectDeploymentEndpointAfterPropagation(config, {
+						inspect: dependencies.inspectEndpoint,
+					})
+				: dependencies.inspectEndpoint(config),
+		),
+	]);
 	const remoteChecks = destroyed
 		? [
 				destroyedWorkerCheck(worker),
