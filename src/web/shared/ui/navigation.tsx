@@ -51,15 +51,27 @@ export function RouterLink({
 	);
 }
 
-type ButtonLinkProps = ButtonProps & { to: string };
+type ButtonLinkProps = ButtonProps & {
+	to: string;
+	reloadDocument?: boolean;
+};
 
-export function ButtonLink({ to, onPress, ...props }: ButtonLinkProps) {
+export function ButtonLink({
+	to,
+	reloadDocument = false,
+	onPress,
+	...props
+}: ButtonLinkProps) {
 	const navigate = useNavigate();
 	return (
 		<Button
 			{...props}
 			onPress={(event) => {
 				onPress?.(event);
+				if (reloadDocument) {
+					globalThis.location.assign(to);
+					return;
+				}
 				void navigate(to);
 			}}
 		/>

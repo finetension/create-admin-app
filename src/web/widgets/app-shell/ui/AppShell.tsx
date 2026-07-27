@@ -32,6 +32,7 @@ function Navigation({
 		<nav aria-label="주 메뉴">
 			<ButtonLink
 				to="/"
+				reloadDocument
 				fullWidth
 				onPress={onNavigate}
 				className="justify-start"
@@ -42,6 +43,7 @@ function Navigation({
 			{user.role === "owner" && (
 				<ButtonLink
 					to="/owner/team"
+					reloadDocument
 					fullWidth
 					onPress={onNavigate}
 					className="justify-start"
