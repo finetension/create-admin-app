@@ -1,7 +1,7 @@
 # Create Admin App PRD
 
 - 상태: 생성 경험 및 기반 범위 확정
-- 최종 수정: 2026-07-27
+- 최종 수정: 2026-07-28
 - 범위: 공개 생성 CLI, 공통 기반과 첫 참조 제품 방향
 
 ## 1. 제품 정의
@@ -123,8 +123,8 @@ Actions의 실제 Cloudflare mutation은 일반 help에서 숨긴 `pnpm cli inte
 
 Application Deploy와 Application Destroy workflow는 private과 명시적으로 선택한 public 저장소에서 모두 실행할 수 있다. 공개 저장소의 Actions log나 artifact에 D1 데이터, Worker 요청·응답 또는 live log를 기록하지 않는다. 공개 기준 모노레포는 실제 회사의 production을 운영하지 않으며 Application CI, Package CI와 Package Publish만 실행한다.
 
-- Application CI: 설치, 임시 D1 전체 migration, lint, type check, test, build
-- Application Deploy: `main` push 또는 수동 dispatch로 실행. 별도 validation job의 `pnpm check`가 성공한 뒤에만 pending migration, Worker 배포, OTP·Access 정책 보장, Worker 활성 상태와 비인증 Access 차단 smoke check를 수행
+- Application CI: PR에서 설치, 임시 D1 전체 migration, lint, type check, test, build
+- Application Deploy: `main` push 또는 수동 dispatch로 실행. 단일 job이 production credential 없이 `pnpm check`를 성공한 뒤에만 credential을 mutation step에 주입하고 pending migration, Worker 배포, OTP·Access 정책 보장, Worker 활성 상태와 비인증 Access 차단 smoke check를 수행
 - Application Destroy: `main`에서만 실행하는 인프라 철거. 정확한 서비스명, 작업별 capability와 단일 production 동시성 잠금을 강제
 - Package CI: 생성 CLI 단위 검증과 실제 local tarball로 독립 프로젝트를 한 번 생성하는 smoke test
 - Package Publish: 보호된 `npm` Environment에서 버전 선택, 전체 검증, release commit·tag, npm publish와 GitHub Release를 수행한 뒤 공개 registry의 정확한 버전으로 독립 프로젝트 생성과 `pnpm check`를 자동 smoke test
@@ -218,7 +218,7 @@ Beestory는 현재 판매 채널 전체의 매출을 안정적으로 추적하�
 - 첫 production workflow가 성공하고 lifecycle commit이 반영되면 로컬 개발이 원격 D1으로 전환된다.
 - 제품 CLI에서 guarded Actions 밖의 원격 migration과 배포가 거부된다.
 - 제품 CLI에서 guarded Actions 밖의 인프라 철거가 거부된다.
-- Application Deploy의 Cloudflare mutation job은 같은 workflow의 전체 validation job 성공을 명시적으로 요구한다.
+- Application Deploy의 Cloudflare mutation step은 같은 job의 credential-free 전체 validation이 먼저 성공해야 실행된다.
 - Application과 Package CI/CD 워크플로가 이 문서와 일치한다.
 - create CLI로 임시 디렉터리에 생성한 독립 프로젝트가 install, migration, check, build를 통과한다.
 - 생성 프로젝트는 기준 저장소의 Create Admin App·Beestory 제품 문맥을 상속하지 않고 프로젝트 전용 README, AGENTS와 빈 제품 PRD를 가진다.

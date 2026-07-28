@@ -53,7 +53,7 @@ pnpm create @finetension/admin-app my-company
 
 프로젝트 CLI의 공식 표면은 `pnpm cli <command>`다. `pnpm dev`, `pnpm check`, `pnpm deploy`, `pnpm test`, `pnpm build`는 도구 호환을 위해 같은 구현을 가리키는 표준 alias로 유지한다. TypeScript CLI는 로컬 개발 orchestration과 GitHub Actions가 함께 사용하는 자동화 엔진이다.
 
-로컬 `pnpm cli deploy`는 설정 확인, 검증, Git commit·push, GitHub repository secret 구성, workflow 요청과 완료 대기, lifecycle commit의 local fast-forward까지만 수행한다. D1 migration, Worker와 Access 변경은 저장소의 guarded Actions에서 실행한다.
+로컬 `pnpm cli deploy`는 설정 확인, commit 전 secret 검사, Git commit·push, GitHub repository secret 구성, workflow 요청과 완료 대기, lifecycle commit의 local fast-forward까지만 수행한다. 전체 검증, D1 migration, Worker와 Access 변경은 저장소의 guarded Actions에서 실행한다.
 
 Actions는 같은 CLI의 숨겨진 `internal deploy`와 `internal destroy`를 사용한다. 일반 help에서는 숨기고 `help --all --json`에서는 CI 전용 조건과 위험도를 명시한다. 내부 명령은 GitHub Actions 환경, `main` ref, 허용 event와 작업별 capability를 모두 검증하고 process의 `CLOUDFLARE_API_TOKEN`만 사용한다. OS credential store를 읽는 로컬 호출은 Cloudflare 요청 전에 거부한다.
 

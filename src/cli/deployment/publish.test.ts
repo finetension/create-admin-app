@@ -25,7 +25,7 @@ vi.mock("../core/credentials.ts", () => ({
 const { publishWorker } = await import("./publish.ts");
 
 describe("Worker publication", () => {
-	it("injects the existing repository token through stdin after deploy", async () => {
+	it("builds once for production and injects the token through stdin", async () => {
 		await publishWorker(
 			{
 				accountId: "a".repeat(32),
@@ -35,6 +35,17 @@ describe("Worker publication", () => {
 			"/tmp/generated-wrangler.json",
 		);
 
+		expect(runPnpm).toHaveBeenCalledTimes(1);
+		expect(runPnpm).toHaveBeenCalledWith(
+			["exec", "vite", "build"],
+			expect.objectContaining({
+				accountId: "a".repeat(32),
+				env: expect.objectContaining({
+					WRANGLER_CONFIG_PATH: "/tmp/generated-wrangler.json",
+					VITE_APP_NAME: "Management",
+				}),
+			}),
+		);
 		expect(runWrangler).toHaveBeenCalledWith(
 			expect.arrayContaining(["deploy", "--config"]),
 			expect.objectContaining({ accountId: "a".repeat(32) }),

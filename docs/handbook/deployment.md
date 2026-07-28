@@ -57,11 +57,11 @@ public 저장소의 source, `config.toml`에 기록된 Bootstrap Owner 이메일
 
 ## 워크플로
 
-- `application-ci.yml`: 모든 PR과 `main` push를 검증하고 임시 local D1에 전체 migration을 적용
-- `application-deploy.yml`: `main` push 또는 수동 dispatch로 실행. Cloudflare secret 없는 validation job이 `pnpm check`를 통과해야 mutation job이 설정과 자격 증명 진단, D1 migration, Worker·OTP·Access 배포와 검증, lifecycle 자동 commit을 수행
+- `application-ci.yml`: 모든 PR을 검증하고 임시 local D1에 전체 migration을 적용
+- `application-deploy.yml`: `main` push 또는 수동 dispatch로 실행. 단일 job이 production credential 없이 `pnpm check`를 통과한 뒤에만 credential을 mutation step에 주입해 설정과 자격 증명 진단, D1 migration, Worker·OTP·Access 배포와 검증, lifecycle 자동 commit을 수행
 - `application-destroy.yml`: guarded 인프라 destroy. `main`, 허용 event, 작업별 capability와 정확한 서비스명 확인을 강제
 
-GitHub Actions가 제품이 지원하고 감사하는 Cloudflare 운영 mutation 실행 환경이다. 로컬 `pnpm cli deploy`는 전체 계획을 확인한 뒤 `config.toml` 갱신, 검증, secret 검사, Git commit·push, GitHub repository secret 설정, workflow 결과 대기와 lifecycle fast-forward를 orchestration한다. Cloudflare API를 변경하는 단계는 실행하지 않는다. Application Deploy 안에서도 validation과 mutation을 별도 job으로 분리하고 mutation은 validation을 `needs`로 요구해, 같은 push의 별도 Application CI 완료 시점과 관계없이 실패한 변경이 운영에 반영되지 않게 한다.
+GitHub Actions가 제품이 지원하고 감사하는 Cloudflare 운영 mutation 실행 환경이다. 로컬 `pnpm cli deploy`는 전체 계획을 확인한 뒤 `config.toml` 갱신, commit 전 secret 검사, Git commit·push, GitHub repository secret 설정, workflow 결과 대기와 lifecycle fast-forward를 orchestration한다. type check, lint, test와 build는 guarded workflow에 맡기며 Cloudflare API를 변경하는 단계는 로컬에서 실행하지 않는다. Application Deploy의 단일 job은 의존성을 한 번 설치하고 production credential 없이 `pnpm check`를 먼저 실행한다. 이후 mutation step에만 credential을 주입하고 검증 과정에서 만든 CLI를 재사용해 중복 workflow, runner, 설치와 build를 피하면서도 실패한 변경이 운영에 반영되지 않게 한다.
 GitHub API의 안전한 read 요청이 timeout 또는 5xx로 실패하면 CLI가 짧게 최대 3회 재시도한다. 반복 실패 시에는 완료된 commit·push·workflow 상태를 유지하고 같은 제품 CLI 명령의 재실행을 안내한다. repository 조회 실패를 곧바로 repository 부재로 간주하지 않는다.
 workflow의 Cloudflare 단계는 숨겨진 `pnpm cli internal deploy` 또는 `pnpm cli internal destroy`를 호출한다. 내부 명령은 GitHub Actions 환경, `main` ref, 허용 event와 작업별 capability가 모두 일치할 때만 실행하고 process의 `CLOUDFLARE_API_TOKEN`만 사용한다. OS credential store의 같은 write token 때문에 Actions는 token 자체의 보안 경계가 아니며, CLI가 지원하는 mutation·감사 경계다.
 

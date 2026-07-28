@@ -81,7 +81,7 @@ Cloudflare token은 OS credential store에 계정 단위로 저장한다. GitHub
 
 ### 인프라 변경은 Actions에서
 
-로컬 `pnpm cli deploy`는 설정 확인, 로컬 검증, Git commit·push, GitHub repository secret 설정, workflow 실행과 결과 대기만 담당한다. D1 migration, Worker·Access application·policy 생성과 변경은 GitHub Actions 안에서만 수행한다.
+로컬 `pnpm cli deploy`는 설정 확인, commit 전 secret 검사, Git commit·push, GitHub repository secret 설정, workflow 실행과 결과 대기만 담당한다. type check, lint, test와 build는 GitHub Actions에서 한 번 실행하며 D1 migration, Worker·Access application·policy 생성과 변경도 Actions 안에서만 수행한다.
 
 Actions-only는 제품 CLI가 지원하고 감사하는 인프라 경로이지 Cloudflare token 자체의 보안 경계가 아니다. 같은 account-wide write token이 로컬 OS credential store에도 있으므로 신뢰된 사용자는 Cloudflare API를 직접 호출할 수 있다. CLI는 로컬 mutation 명령을 제공하지 않고 에이전트가 모든 인프라 변경을 Actions로 보내도록 강제한다.
 
@@ -363,7 +363,7 @@ public 저장소이면 source, `config.toml`의 Bootstrap Owner 이메일, Actio
 승인 뒤 다음 순서로 실행한다.
 
 1. `config.toml` 원자적 갱신
-2. `pnpm check`와 secretlint
+2. commit 전 secretlint
 3. 현재 변경이 있으면 제공받은 message로 전체 자동 commit
 4. 선택한 visibility의 GitHub repository 생성 또는 기존 `origin`과 visibility 검증
 5. repository Actions secret `CLOUDFLARE_API_TOKEN` 설정
@@ -426,7 +426,7 @@ token을 shell history에 남기는 option은 제공하지 않는다.
 
 ## 9. 배포 이후
 
-Application Deploy workflow는 Cloudflare secret을 사용하지 않는 validation job에서 `pnpm install --frozen-lockfile`과 `pnpm check`를 다시 수행한다. Cloudflare mutation job은 이 job을 `needs`로 요구하며, 성공한 뒤에만 D1 migration, Worker 배포, 기존 IdP를 보존한 OTP 보장, 역할 그룹과 경로별 Access application·policy 배포, Worker secret 주입, smoke check와 lifecycle commit을 수행한다. 별도 Application CI가 같은 push에서 병렬로 실행되더라도 Deploy 자체의 validation이 운영 반영을 차단한다. smoke check는 Cloudflare API에서 Worker deployment가 active인지 확인하고 인증되지 않은 private production URL이 Access 로그인 또는 거부 응답을 반환하며 public health 경로는 접근 가능한지 검사한다. 공통 기반은 CI용 Access service token이나 인증된 운영 데이터 요청을 사용하지 않는다.
+Application CI는 PR만 검증한다. `main` push는 Application Deploy만 시작하며, 단일 job이 의존성을 한 번 설치하고 production credential 없이 `pnpm check`를 실행한다. 이 검증이 성공한 뒤에만 mutation step에 repository secret을 주입하고, 검증에서 만든 CLI를 재사용해 운영 전용 Vite build, D1 migration, Worker 배포, 기존 IdP를 보존한 OTP 보장, 역할 그룹과 경로별 Access application·policy 배포, Worker secret 주입, smoke check와 lifecycle commit을 수행한다. smoke check는 Cloudflare API에서 Worker deployment가 active인지 확인하고 인증되지 않은 private production URL이 Access 로그인 또는 거부 응답을 반환하며 public health 경로는 접근 가능한지 검사한다. 공통 기반은 CI용 Access service token이나 인증된 운영 데이터 요청을 사용하지 않는다.
 
 첫 배포 뒤 local branch가 workflow의 lifecycle commit까지 동기화되면 `pnpm cli dev`는 기준 remote D1을 사용한다. 첫 remote 연결에 Cloudflare 계정 로그인이 필요하면 TTY에서 브라우저 인증을 수행하고 machine mode에서는 구조화 오류로 사용자 handoff를 요청한다. 운영 migration과 destroy는 계속 Actions capability 안에서만 실행한다.
 

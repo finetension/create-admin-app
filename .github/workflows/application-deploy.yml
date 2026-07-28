@@ -13,25 +13,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  validate:
-    if: github.repository != 'finetension/create-admin-app' && !github.event.repository.fork
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v6
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm check
-
   deploy:
     if: github.repository != 'finetension/create-admin-app' && !github.event.repository.fork
-    needs: validate
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v6
         with:
@@ -57,11 +42,13 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Validate without production credentials
+        run: pnpm check
       - name: Deploy, migrate, protect, and smoke-check
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           PLATFORM_ALLOW_DEPLOY: "1"
-        run: pnpm cli internal deploy --json
+        run: node ./dist/cli/index.mjs internal deploy --json
       - name: Commit the lifecycle transition
         shell: bash
         run: |

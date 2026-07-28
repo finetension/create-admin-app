@@ -10,18 +10,36 @@ function workflow(name: string): string {
 }
 
 describe("production workflow policy", () => {
+	it("validates pull requests without duplicating main push validation", () => {
+		const source = workflow("application-ci.yml");
+		expect(source).toContain("pull_request:");
+		expect(source).not.toContain("push:");
+		expect(source).toContain("pnpm run application:check");
+	});
+
 	it("deploys private or public generated repositories from main", () => {
 		const source = workflow("application-deploy.yml");
 		expect(source).toContain("push:");
 		expect(source).toContain("workflow_dispatch:");
 		expect(source).not.toContain("repository.private");
 		expect(source).not.toContain("environment: production");
-		expect(source).toContain("validate:");
+		expect(source.match(/runs-on: ubuntu-latest/g)).toHaveLength(1);
 		expect(source).toContain("run: pnpm check");
-		expect(source).toContain("needs: validate");
-		expect(source).toContain("pnpm cli internal deploy --json");
+		expect(source).not.toContain("needs: validate");
+		expect(source).toContain(
+			"node ./dist/cli/index.mjs internal deploy --json",
+		);
 		expect(source).toContain("secrets.CLOUDFLARE_API_TOKEN");
 		expect(source).toContain("finetension/create-admin-app");
+
+		const check = source.indexOf("run: pnpm check");
+		const secret = source.indexOf("CLOUDFLARE_API_TOKEN:");
+		const deploy = source.indexOf(
+			"run: node ./dist/cli/index.mjs internal deploy --json",
+		);
+		expect(check).toBeGreaterThan(-1);
+		expect(secret).toBeGreaterThan(check);
+		expect(deploy).toBeGreaterThan(secret);
 	});
 
 	it("keeps application destroy narrow and omits backup or restore", () => {

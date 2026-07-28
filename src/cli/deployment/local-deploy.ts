@@ -68,6 +68,8 @@ export interface LocalDeployOptions {
 	reconfigure?: boolean;
 }
 
+export const localDeployPreflightArgs = ["run", "secretlint"] as const;
+
 interface ResolvedDeployTarget {
 	config: ProjectConfig;
 	repository: string;
@@ -820,8 +822,8 @@ export async function runLocalDeploy(
 		storeCloudflareCredentials(target.account.id, target.token);
 	}
 	if (configChanged) await writeProjectConfig(target.config);
-	progress("로컬 검증과 secret 검사를 실행합니다.");
-	await runPnpm(["check"], { ci: false });
+	progress("push 전에 로컬 secret 검사를 실행합니다.");
+	await runPnpm([...localDeployPreflightArgs], { ci: false });
 	await runCommand("git", ["add", "--all"], { ci: false });
 	const stagedFiles = (await readGitValue(["diff", "--cached", "--name-only"]))
 		.split("\n")

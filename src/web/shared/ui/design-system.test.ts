@@ -78,7 +78,8 @@ describe("HeroUI design system boundary", () => {
 			new URL("./styles/index.css", import.meta.url),
 			"utf8",
 		);
-		expect(css).toBe('@import "tailwindcss";\n@import "@heroui/styles";\n');
+		expect(css).toContain('@import "tailwindcss";\n@import "@heroui/styles";');
+		expect(css).toContain('--font-sans:\n\t\t"Wanted Sans Variable"');
 	});
 
 	it("keeps HeroUI as the only web stylesheet", () => {

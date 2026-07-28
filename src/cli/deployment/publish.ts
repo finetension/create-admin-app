@@ -16,12 +16,6 @@ export async function publishWorker(
 	config: DeploymentConfig,
 	generatedConfigPath: string,
 ): Promise<void> {
-	logger.start("정적 검증과 테스트를 실행합니다");
-	await runPnpm(["run", "check"], {
-		accountId: config.accountId,
-		env: { VITE_APP_NAME: config.name },
-	});
-
 	logger.start("운영 D1 migration을 적용합니다");
 	await runWrangler(
 		[
@@ -37,7 +31,7 @@ export async function publishWorker(
 	);
 
 	logger.start("운영 설정으로 Worker 번들을 빌드합니다");
-	await runPnpm(["run", "build"], {
+	await runPnpm(["exec", "vite", "build"], {
 		accountId: config.accountId,
 		env: {
 			WRANGLER_CONFIG_PATH: generatedConfigPath,

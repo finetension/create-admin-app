@@ -3,11 +3,16 @@ import {
 	assertSafeCommitPaths,
 	classifyRemoteMain,
 	isWorkflowIndexingDelay,
+	localDeployPreflightArgs,
 	normalizeGitHubRemote,
 	parseGitStatusFiles,
 } from "./local-deploy.ts";
 
 describe("local deploy target discovery", () => {
+	it("keeps only the pre-push secret scan in the local preflight", () => {
+		expect(localDeployPreflightArgs).toEqual(["run", "secretlint"]);
+	});
+
 	it("uses existing HTTPS and SSH GitHub origins as established targets", () => {
 		expect(
 			normalizeGitHubRemote("https://github.com/finetension/my-company.git"),
