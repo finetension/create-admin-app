@@ -1,7 +1,5 @@
 import {
 	Alert,
-	Avatar,
-	Card,
 	CloudIcon,
 	Code2Icon,
 	DatabaseIcon,
@@ -31,7 +29,7 @@ const foundations = [
 
 export function DashboardPage() {
 	return (
-		<div className="grid gap-6">
+		<div className="grid gap-5">
 			<PageHeader
 				eyebrow="Management system scaffold"
 				title="제품 업무를 구현할 기반이 준비됐습니다"
@@ -49,23 +47,25 @@ export function DashboardPage() {
 				</Alert.Content>
 			</Alert>
 
-			<section className="grid gap-4 md:grid-cols-3" aria-label="기반 구성">
+			<section
+				className="grid border-y border-border md:grid-cols-3 md:divide-x md:divide-border"
+				aria-label="기반 구성"
+			>
 				{foundations.map(({ title, description, icon: Icon }) => (
-					<Card key={title}>
-						<Card.Content className="gap-4">
-							<Avatar variant="soft">
-								<Avatar.Fallback>
-									<Icon size={19} />
-								</Avatar.Fallback>
-							</Avatar>
-							<div>
-								<Typography.Heading level={2}>{title}</Typography.Heading>
-								<Typography.Paragraph color="muted" size="sm">
-									{description}
-								</Typography.Paragraph>
-							</div>
-						</Card.Content>
-					</Card>
+					<div
+						className="flex gap-3 border-b border-border py-4 last:border-b-0 md:border-b-0 md:px-4 md:first:ps-0 md:last:pe-0"
+						key={title}
+					>
+						<Icon className="mt-0.5 shrink-0" size={19} />
+						<div className="min-w-0">
+							<Typography.Heading className="text-base" level={2}>
+								{title}
+							</Typography.Heading>
+							<Typography.Paragraph color="muted" size="sm">
+								{description}
+							</Typography.Paragraph>
+						</div>
+					</div>
 				))}
 			</section>
 		</div>
