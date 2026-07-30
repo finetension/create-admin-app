@@ -213,7 +213,7 @@ export async function buildHelpContract(includeInternal = true) {
 				strict: true,
 				sections: {
 					project: ["name", "slug"],
-					access: ["bootstrap_owner_email"],
+					access: ["bootstrap_owner_email", "google_login"],
 					github: ["owner", "repository", "visibility"],
 					cloudflare: ["account_id", "workers_dev", "domain", "subdomain"],
 				},
@@ -248,11 +248,27 @@ export async function buildHelpContract(includeInternal = true) {
 						"auth login": "verified-os-credential-store",
 					},
 				},
+				{
+					name: "GOOGLE_OAUTH_CLIENT_ID",
+					commands: ["deploy", "internal deploy"],
+					secret: true,
+					required_when: "config.toml access.google_login is true",
+					persistence: "GitHub repository Actions secret",
+				},
+				{
+					name: "GOOGLE_OAUTH_CLIENT_SECRET",
+					commands: ["deploy", "internal deploy"],
+					secret: true,
+					required_when: "config.toml access.google_login is true",
+					persistence: "GitHub repository Actions secret",
+				},
 			],
 			credentials: {
 				github: "gh auth",
 				cloudflare_local: "OS credential store by account",
 				cloudflare_actions: "GitHub repository Actions secret",
+				google_oauth_actions:
+					"optional GitHub repository Actions secrets set by deploy",
 			},
 		},
 		commands: await Promise.all(sources.map(describeCommand)),

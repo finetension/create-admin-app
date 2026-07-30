@@ -49,6 +49,14 @@ describe("agent help contract", () => {
 					name: "CLOUDFLARE_API_TOKEN",
 					secret: true,
 				}),
+				expect.objectContaining({
+					name: "GOOGLE_OAUTH_CLIENT_ID",
+					secret: true,
+				}),
+				expect.objectContaining({
+					name: "GOOGLE_OAUTH_CLIENT_SECRET",
+					secret: true,
+				}),
 			]),
 		});
 		const tokenInput = contract.inputs.environment.find(

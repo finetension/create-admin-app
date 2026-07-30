@@ -1,7 +1,7 @@
 # Create Admin App PRD
 
 - 상태: 생성 경험 및 기반 범위 확정
-- 최종 수정: 2026-07-28
+- 최종 수정: 2026-07-31
 - 범위: 공개 생성 CLI, 공통 기반과 첫 참조 제품 방향
 
 ## 1. 제품 정의
@@ -10,7 +10,7 @@
 
 공개 제품명은 Create Admin App이다. npm 패키지 `@finetension/create-admin-app`을 `pnpm create @finetension/admin-app`으로 실행해 독립 프로젝트를 생성한다. 공개 모노레포 루트는 기준 템플릿과 CI 검증 앱이고, 생성 CLI는 같은 저장소의 workspace package로 유지한다. 실제 Cloudflare 운영 배포는 생성한 독립 저장소에서 실행하며 기본 visibility는 private이고 `--public`을 명시하면 public도 지원한다.
 
-첫 번째 완성형 참조 제품은 Beestory 매출 관리 시스템이다. 이 제품을 끝까지 구현해 스캐폴드를 검증한 뒤 반복되는 부분만 추출한다.
+DCY 내부 관리 시스템은 공통 기반의 현재 참조 구현이다. 이 제품에서 실제 운영하며 검증한 인증 경계, 모바일 내비게이션, 구성원 프로필과 감사 기록 중 도메인에 의존하지 않는 부분만 공통 코어로 추출한다. 수련회 일정·예산·논의 같은 DCY 업무 기능은 생성기에 포함하지 않는다. 이후 독립 제품에서도 같은 코어가 유지되는지 검증하고, 한 제품에만 필요한 동작은 다시 명시적인 제품 slice에 둔다.
 
 ## 2. 대상 팀과 운영 모델
 
@@ -27,7 +27,7 @@
 3. 첫 배포 이후 하나의 운영 데이터만 기준 데이터로 사용한다.
 4. 인프라와 데이터 변경은 GitHub Actions로 제한하고, 런타임 역할 변경은 Owner 전용 API와 감사 로그로 추적한다.
 5. FSD 경계가 강제되는 일관된 HeroUI 웹 기반을 제공한다.
-6. 프레임워크 추상화나 예제를 먼저 만들지 않고 실제 제품 하나를 완성한다.
+6. 검증된 실제 제품에서 도메인에 독립적인 운영 패턴만 추출하고 예제 업무 모듈을 만들지 않는다.
 7. 에이전트가 비인터랙티브 CLI를 사용해 로컬 프로젝트를 만들고, 사람이 계획을 확인하면 같은 프로젝트 CLI로 GitHub와 Cloudflare 연결부터 Actions 배포 완료까지 진행한다.
 
 ## 4. 하지 않는 것
@@ -48,6 +48,7 @@
 
 - 배포된 호스트는 Cloudflare Access로 보호한다.
 - 기본 로그인 방식은 Cloudflare Access One-time PIN이며 별도 OAuth 앱을 요구하지 않는다. 신규 Zero Trust organization에서 OTP가 기본 생성되지 않으므로 Application Deploy workflow가 기존 IdP를 보존하면서 OTP identity provider를 멱등하게 보장한다.
+- 프로젝트가 `[access].google_login = true`를 명시하면 배포 workflow는 저장소 secret의 Google OAuth 자격 증명으로 Google identity provider를 멱등하게 보장하고, 각 Access application이 OTP와 Google을 함께 허용하도록 구성한다. 기본값은 `false`이며 자격 증명은 `config.toml`, Git, CLI 인자 또는 출력에 기록하지 않는다.
 - `public`은 역할이 아니라 인증 없는 명시적 접근 범위다. 인증 사용자는 서로 배타적인 `owner`, `admin`, `member` 중 하나다.
 - Cloudflare Access의 재사용 가능 그룹과 경로별 application·policy가 운영 인가의 유일한 기준이다. D1에는 현재 역할을 복제하지 않는다.
 - 일반 경로는 Owner·Admin·Member, `/admin/*`와 `/api/admin/*`는 Owner·Admin, `/owner/*`와 `/api/owner/*`는 Owner만 허용한다. `/public/*`와 `/api/public/*`만 인증 없이 공개한다.
@@ -71,10 +72,13 @@
 
 기반에는 다음만 포함한다.
 
-- 인증된 앱 셸과 최소 홈 화면
-- Owner가 팀원 역할을 관리하는 공통 보안 화면
-- 공통 오류 처리와 API 요청 규약
-- 명시적인 D1 migration
+- 인증된 앱 셸, 최소 홈 화면과 역할별 경로를 보존하는 반응형 내비게이션
+- 모바일의 주요 하단 탐색과 확장 가능한 전체 메뉴, 데스크톱 사이드바
+- Owner가 팀원의 이름과 역할을 관리하는 공통 보안 화면
+- 구성원 변경 이력을 Owner가 조회하는 읽기 전용 감사 화면
+- 역할 경계를 자동 적용하는 API 요청 규약과 Access 세션·권한·네트워크·서버 오류의 명시적인 복구 화면
+- 공개 Access 거부 안내와 알 수 없는 앱 경로의 명시적인 404 화면
+- 구성원 프로필 메타데이터와 감사 기록을 위한 append-only D1 migration
 - audit에 사용할 행위자 식별 정보
 - HeroUI 어댑터·공개 API와 FSD lint 경계
 - 빌드, 테스트, 배포, 상태 조회, smoke check 도구
@@ -88,6 +92,8 @@
 - `shared/ui`는 이후 기능에서 HeroUI를 직접 import하지 않도록 HeroUI 전체 컴포넌트 표면을 미리 래핑한다.
 - HeroUI의 합성 구조, variant, 접근성, 기본 시각 언어를 디자인 시스템의 기준으로 삼는다.
 - 제품 코드의 Tailwind 클래스는 레이아웃과 반응형 배치에만 사용한다. 별도의 테마나 시각 variant를 만들지 않는다.
+- 좁은 모바일 화면을 기준으로 정보 밀도와 터치 영역을 먼저 검증하고 데스크톱으로 확장한다.
+- 브라우저의 기본 스크롤과 모바일 pull-to-refresh를 막는 전역 overscroll 제어를 사용하지 않는다.
 
 ### 5.4 데이터베이스 생명주기
 
@@ -169,7 +175,7 @@ Application Deploy와 Application Destroy workflow는 private과 명시적으로
 
 전체 명령 체계, 프롬프트 순서와 단계별 완료 조건은 [Developer Experience](./developer-experience.md)를 따른다.
 
-## 6. 첫 참조 제품: Beestory 매출 관리
+## 6. 다음 독립 검증 제품: Beestory 매출 관리
 
 ### 문제
 
@@ -206,7 +212,7 @@ Beestory는 현재 판매 채널 전체의 매출을 안정적으로 추적하�
 3. 빠뜨리면 안전하지 않거나 불일치한 구현이 반복된다.
 4. 비개발자와 AI 에이전트가 쉽게 이해할 수 있다.
 
-그 외 기능은 실제 제품에 둔다. Beestory 구현에서 안정된 반복 패턴이 확인된 뒤 재사용 코드를 추출한다.
+그 외 기능은 실제 제품에 둔다. DCY에서 추출한 코어는 Beestory를 포함한 독립 제품 생성 검증을 통과해야 하며, 추가 공통화는 서로 다른 제품에서 안정된 반복 패턴이 확인된 뒤 결정한다.
 
 ## 8. 기반 단계 완료 조건
 
@@ -221,7 +227,7 @@ Beestory는 현재 판매 채널 전체의 매출을 안정적으로 추적하�
 - Application Deploy의 Cloudflare mutation step은 같은 job의 credential-free 전체 validation이 먼저 성공해야 실행된다.
 - Application과 Package CI/CD 워크플로가 이 문서와 일치한다.
 - create CLI로 임시 디렉터리에 생성한 독립 프로젝트가 install, migration, check, build를 통과한다.
-- 생성 프로젝트는 기준 저장소의 Create Admin App·Beestory 제품 문맥을 상속하지 않고 프로젝트 전용 README, AGENTS와 빈 제품 PRD를 가진다.
+- 생성 프로젝트는 기준 저장소의 Create Admin App·DCY 제품 문맥을 상속하지 않고 프로젝트 전용 README, AGENTS와 빈 제품 PRD를 가진다.
 - npm package에 독립 template lockfile을 포함하고 생성 시 frozen install을 사용해 같은 package version이 같은 dependency graph를 만든다.
 - npm release workflow가 검증한 tarball만 publish하며 로컬 publish를 요구하지 않고, publish된 정확한 버전의 독립 생성·검사를 자동으로 완료한다.
 - Package CI가 배포 전 local tarball로 독립 프로젝트 생성·검사를 완료한다.
@@ -232,6 +238,5 @@ Beestory는 현재 판매 채널 전체의 매출을 안정적으로 추적하�
 
 ## 9. 보류한 결정
 
-- Beestory 제품에서 필요한 audit 범위
 - connector 동기화에 스케줄러가 필요한 시점
-- 검증된 Beestory 코드 중 canonical example 또는 공통 코어로 이동할 범위
+- 두 개 이상의 독립 제품에서 반복되기 전에는 업무 기능이나 범용 화면을 공통 코어로 추가하지 않는다.

@@ -39,6 +39,37 @@ function createDatabase() {
 	};
 }
 
+function createAuditDatabase() {
+	const run = vi.fn(async () => ({}));
+	const first = vi.fn(async () => ({
+		id: "founder-id",
+		email: "founder@example.com",
+	}));
+	const all = vi.fn(async () => ({
+		results: [
+			{
+				id: "audit-1",
+				actor_email: "founder@example.com",
+				action: "access.member.role_changed",
+				resource_type: "access_member",
+				resource_id: "member@example.com",
+				details: JSON.stringify({
+					email: "member@example.com",
+					previous_role: "member",
+					role: "admin",
+				}),
+				created_at: "2026-07-30T09:00:00.000Z",
+			},
+		],
+	}));
+	const prepare = vi.fn((sql: string) => ({
+		bind: vi.fn(() =>
+			sql.includes("FROM audit_logs AS audit") ? { all } : { first, run },
+		),
+	}));
+	return { db: { prepare } as unknown as D1Database, all };
+}
+
 function createCloudflareFetch() {
 	const groups = {
 		"owner-group": {
@@ -141,11 +172,91 @@ describe("Worker role routes", () => {
 			{
 				method: "PUT",
 				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ role: "member" }),
+				body: JSON.stringify({
+					role: "member",
+					displayName: "New Member",
+				}),
 			},
 			{ ...baseEnv, APP_DB: database.db },
 		);
 		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toMatchObject({
+			data: {
+				members: [
+					{
+						email: "founder@example.com",
+						role: "owner",
+						bootstrap: true,
+					},
+					{
+						email: "member@example.com",
+						displayName: "New Member",
+						role: "member",
+						bootstrap: false,
+					},
+				],
+			},
+		});
 		expect(database.auditRun).toHaveBeenCalledOnce();
+	});
+
+	it("does not call Cloudflare or audit an unchanged membership", async () => {
+		const cloudflareFetch = createCloudflareFetch();
+		vi.stubGlobal("fetch", cloudflareFetch);
+		const database = createDatabase();
+		const response = await app.request(
+			"/api/owner/members/founder%40example.com",
+			{
+				method: "PUT",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ role: "owner" }),
+			},
+			{ ...baseEnv, APP_DB: database.db },
+		);
+
+		expect(response.status).toBe(200);
+		expect(database.auditRun).not.toHaveBeenCalled();
+		expect(
+			cloudflareFetch.mock.calls.some(([, init]) => init?.method === "PUT"),
+		).toBe(false);
+	});
+
+	it("lets only an Owner read newest audit entries", async () => {
+		const database = createAuditDatabase();
+		const response = await app.request(
+			"/api/owner/audit-logs",
+			{},
+			{ ...baseEnv, APP_DB: database.db },
+		);
+
+		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toEqual({
+			data: {
+				entries: [
+					{
+						id: "audit-1",
+						actorEmail: "founder@example.com",
+						action: "access.member.role_changed",
+						resourceType: "access_member",
+						resourceId: "member@example.com",
+						details: {
+							email: "member@example.com",
+							previous_role: "member",
+							role: "admin",
+						},
+						createdAt: "2026-07-30T09:00:00.000Z",
+					},
+				],
+				nextCursor: null,
+			},
+		});
+		expect(database.all).toHaveBeenCalledOnce();
+
+		const forbidden = await app.request(
+			"/api/owner/audit-logs",
+			{},
+			{ ...baseEnv, DEV_ACCESS_ROLE: "admin", APP_DB: database.db },
+		);
+		expect(forbidden.status).toBe(403);
 	});
 });

@@ -199,13 +199,17 @@ export async function updateGitHubRepositoryVisibility(
 
 export async function setRepositorySecret(
 	repository: string,
-	token: string,
+	name:
+		| "CLOUDFLARE_API_TOKEN"
+		| "GOOGLE_OAUTH_CLIENT_ID"
+		| "GOOGLE_OAUTH_CLIENT_SECRET",
+	value: string,
 ): Promise<void> {
-	await runCommand(
-		"gh",
-		["secret", "set", "CLOUDFLARE_API_TOKEN", "--repo", repository],
-		{ capture: true, input: token, ci: false },
-	);
+	await runCommand("gh", ["secret", "set", name, "--repo", repository], {
+		capture: true,
+		input: value,
+		ci: false,
+	});
 }
 
 export async function dispatchDeployWorkflow(

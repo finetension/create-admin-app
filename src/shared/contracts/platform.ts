@@ -22,6 +22,7 @@ export interface CurrentUser {
 
 export interface AccessMember {
 	email: string;
+	displayName?: string;
 	role: AccessRole;
 	bootstrap: boolean;
 }
@@ -32,6 +33,22 @@ export interface AccessMembers {
 
 export interface UpdateAccessMemberInput {
 	role: AccessRole;
+	displayName?: string;
+}
+
+export interface AuditLogEntry {
+	id: string;
+	actorEmail: string;
+	action: string;
+	resourceType: string;
+	resourceId: string | null;
+	details: Record<string, unknown>;
+	createdAt: string;
+}
+
+export interface AuditLogPage {
+	entries: AuditLogEntry[];
+	nextCursor: string | null;
 }
 
 export interface ApiErrorBody {

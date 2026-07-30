@@ -13,6 +13,7 @@ const domainPattern =
 const accountIdPattern = /^[a-f0-9]{32}$/i;
 const githubOwnerPattern = /^[a-z\d](?:[a-z\d-]{0,37}[a-z\d])?$/i;
 const githubRepositoryPattern = /^[a-z\d._-]{1,100}$/i;
+export const googleAccessIdentityProviderName = "Google login";
 
 const displayNameSchema = z
 	.string()
@@ -34,6 +35,7 @@ const projectSectionSchema = z.strictObject({
 
 const accessSectionSchema = z.strictObject({
 	bootstrap_owner_email: emailSchema,
+	google_login: z.boolean().optional(),
 });
 
 const githubSectionSchema = z
@@ -142,6 +144,7 @@ export interface UserConfig {
 	slug: string;
 	serviceName: string;
 	bootstrapOwnerEmail: string;
+	googleLogin: boolean;
 	domain?: string;
 	subdomain?: string;
 	routing: "custom-domain" | "workers-dev";
@@ -153,6 +156,8 @@ export interface UserConfig {
 export interface AccessConfig {
 	sessionDuration: string;
 	identityProviderName: string;
+	googleIdentityProviderName: string;
+	googleLogin: boolean;
 	teamName: string;
 	bootstrapOwnerEmail: string;
 	groupNames: {
@@ -266,6 +271,7 @@ export async function loadUserConfig(
 		slug: config.project.slug,
 		serviceName: config.project.slug,
 		bootstrapOwnerEmail: config.access.bootstrap_owner_email,
+		googleLogin: config.access.google_login ?? false,
 		...(cloudflare?.domain ? { domain: cloudflare.domain } : {}),
 		...(cloudflare?.subdomain ? { subdomain: cloudflare.subdomain } : {}),
 		routing: cloudflare?.domain ? "custom-domain" : "workers-dev",
@@ -376,6 +382,8 @@ export function createDeploymentConfig(
 		access: {
 			sessionDuration: "24h",
 			identityProviderName: "One-time PIN login",
+			googleIdentityProviderName: googleAccessIdentityProviderName,
+			googleLogin: userConfig.googleLogin,
 			teamName: `${teamNameBase}-${accountId.slice(0, 8)}`,
 			bootstrapOwnerEmail: userConfig.bootstrapOwnerEmail,
 			groupNames: {

@@ -4,7 +4,9 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
 	assertCloudflareAccountMayChange,
+	createDeploymentConfig,
 	loadProjectConfig,
+	loadUserConfig,
 	parseProjectConfig,
 	writeProjectConfig,
 } from "./config.ts";
@@ -39,6 +41,38 @@ describe("project config", () => {
 				access: { bootstrap_owner_email: "owner@example.com" },
 			}),
 		).toThrow(/workspace_id/);
+	});
+
+	it("keeps Google login opt-in and resolves its managed provider name", async () => {
+		const directory = await mkdtemp(resolve(tmpdir(), "admin-config-google-"));
+		const path = resolve(directory, "config.toml");
+		await writeProjectConfig(
+			{
+				project: {
+					name: "My Company",
+					slug: "my-company",
+				},
+				access: {
+					bootstrap_owner_email: "owner@example.com",
+					google_login: true,
+				},
+			},
+			path,
+		);
+
+		const userConfig = await loadUserConfig(path);
+		expect(userConfig.googleLogin).toBe(true);
+		expect(
+			createDeploymentConfig(
+				userConfig,
+				"a".repeat(32),
+				"2026-07-31",
+				"example",
+			).access,
+		).toMatchObject({
+			googleIdentityProviderName: "Google login",
+			googleLogin: true,
+		});
 	});
 
 	it("validates GitHub targets before they reach gh", () => {

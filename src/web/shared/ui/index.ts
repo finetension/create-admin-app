@@ -1,6 +1,7 @@
 export type * from "./adapters/heroui/types";
 export * from "./components";
 export {
+	NumberInputField,
 	SelectField,
 	type SelectOption,
 	TextAreaField,

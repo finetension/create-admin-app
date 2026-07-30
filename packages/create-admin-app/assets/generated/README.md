@@ -1,6 +1,6 @@
 # {{PROJECT_NAME}}
 
-Cloudflare-native internal management system generated with Create Admin App.
+Cloudflare-native internal management system for a small, trusted team.
 
 ## Prerequisites
 

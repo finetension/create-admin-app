@@ -56,6 +56,7 @@ slug = "my-company"
 
 [access]
 bootstrap_owner_email = "owner@example.com"
+google_login = false
 
 [github]
 owner = "finetension"
@@ -67,7 +68,7 @@ account_id = "00000000000000000000000000000000"
 workers_dev = true
 ```
 
-GitHub와 Cloudflare가 아직 연결되지 않은 로컬 프로젝트는 기본적으로 `[project]`와 `[access]`를 가진다. 생성할 때 `--public`을 명시하면 연결 전 `[github]`에는 `visibility = "public"`만 기록한다. 첫 배포에서 확정한 나머지 대상은 같은 파일에 기록하고 검증·커밋한다. D1 ID, Access AUD, API 응답과 단계별 진행 상태는 기록하지 않는다.
+GitHub와 Cloudflare가 아직 연결되지 않은 로컬 프로젝트는 기본적으로 `[project]`와 `[access]`를 가진다. `google_login`은 생략하거나 `false`이면 OTP만 사용하고 `true`이면 Google 로그인을 함께 사용한다. 생성할 때 `--public`을 명시하면 연결 전 `[github]`에는 `visibility = "public"`만 기록한다. 첫 배포에서 확정한 나머지 대상은 같은 파일에 기록하고 검증·커밋한다. D1 ID, Access AUD, API 응답과 단계별 진행 상태는 기록하지 않는다.
 
 사람과 에이전트가 `config.toml`을 직접 편집할 수 있다. CLI는 `smol-toml`로 전체 파일을 parse하고 strict schema를 검증한 뒤 정해진 section·key 순서의 canonical TOML로 원자적으로 다시 저장한다. 알 수 없는 section이나 key는 조용히 제거하거나 보존하지 않고 정확한 경로, 허용 key와 수정 예시를 포함한 설정 오류로 실패한다. 기존 주석, 공백과 수동 서식은 보존하지 않으므로 설정의 이유나 장기 설명은 문서에 기록한다.
 
@@ -75,7 +76,7 @@ GitHub와 Cloudflare가 아직 연결되지 않은 로컬 프로젝트는 기본
 
 OS별 사용자 config 디렉터리의 `create-admin-app/config.toml`은 기본 GitHub owner와 Cloudflare account만 저장한다. 실제 배포 대상은 항상 프로젝트 `config.toml`에 확정한다.
 
-Cloudflare token은 OS credential store에 계정 단위로 저장한다. GitHub 인증은 `gh`에 맡긴다. 환경변수로 주입한 token은 CI용으로 보고 credential store에 저장하지 않는다.
+Cloudflare token은 OS credential store에 계정 단위로 저장한다. GitHub 인증은 `gh`에 맡긴다. 환경변수로 주입한 token은 CI용으로 보고 credential store에 저장하지 않는다. 선택형 Google 로그인 자격 증명은 `GOOGLE_OAUTH_CLIENT_ID`와 `GOOGLE_OAUTH_CLIENT_SECRET` 환경변수 또는 인터랙티브 password prompt로만 받고, 프로젝트 파일이나 OS credential store에 저장하지 않은 채 대상 GitHub repository Actions secret으로 직접 전달한다.
 
 로컬에서 첫 배포가 성공하면 확정된 GitHub owner와 Cloudflare account를 사용자 config에 원자적으로 저장하고 결과에 변경 사실을 표시한다. 기존 기본값이 있으면 가장 최근에 성공한 선택으로 갱신한다. CI에서는 사용자 config를 만들거나 변경하지 않으며, 이미 연결된 프로젝트에서는 사용자 기본값이 프로젝트 `config.toml`을 덮어쓰지 않는다.
 
@@ -318,7 +319,8 @@ pnpm cli deploy --reconfigure
 - GitHub 인증과 사용 가능한 owner
 - `config.toml`과 lifecycle
 - Cloudflare token 자체, account, Workers, D1, KV, Access와 Zone 조회
-- Zero Trust organization과 One-time PIN identity provider
+- Zero Trust organization, One-time PIN과 선택된 Google identity provider
+- `google_login = true`이면 Google OAuth client ID와 secret
 - 자동 commit 대상의 secret
 
 문제가 있으면 질문이나 파일 변경 전에 가능한 항목을 모두 보고한다.
@@ -339,7 +341,7 @@ GitHub repository와 Cloudflare 연결은 하나의 production 배포 단위다.
 
 Cloudflare token이 없고 인터랙티브라면 Account API Tokens 페이지를 자동으로 열고 `Write all resources` token 입력을 기다린다. 비인터랙티브에서는 브라우저나 프롬프트 없이 실패한다.
 
-선택한 account에 Zero Trust organization이 없으면 인터랙티브에서는 Dashboard 온보딩 URL을 열고 사용자가 team name과 plan 설정을 마친 뒤 재검사한다. machine mode에서는 `cloudflare_zero_trust_setup_required` 설정 오류, URL과 재실행 hint를 반환한다. organization이 존재하지만 OTP identity provider가 없으면 기존 IdP를 바꾸지 않고 Application Deploy workflow가 OTP를 멱등하게 추가한다.
+선택한 account에 Zero Trust organization이 없으면 인터랙티브에서는 Dashboard 온보딩 URL을 열고 사용자가 team name과 plan 설정을 마친 뒤 재검사한다. machine mode에서는 `cloudflare_zero_trust_setup_required` 설정 오류, URL과 재실행 hint를 반환한다. organization이 존재하지만 OTP identity provider가 없으면 기존 IdP를 바꾸지 않고 Application Deploy workflow가 OTP를 멱등하게 추가한다. Google 로그인을 선택하면 Google OAuth 자격 증명의 완전한 쌍을 요구하고 기존 관리 대상 Google provider를 멱등하게 갱신한다.
 
 ### 최종 계획
 
@@ -353,7 +355,7 @@ Cloudflare token이 없고 인터랙티브라면 Account API Tokens 페이지를
 - 수정·commit할 파일
 - 변경이 있을 때 사용할 commit message
 - 생성하거나 갱신할 GitHub repository secret과 Worker `ACCESS_MANAGEMENT_TOKEN` secret 주입
-- Zero Trust organization 상태와 OTP 추가 여부
+- Zero Trust organization 상태와 OTP·선택형 Google 로그인 추가 여부
 - 실행할 workflow
 
 public 저장소이면 source, `config.toml`의 Bootstrap Owner 이메일, Actions run과 안전하게 제한된 배포 log가 공개된다는 사실도 표시한다. 동적으로 추가한 팀원 이메일은 Git이나 plan에 출력하지 않는다. `workers.dev`를 선택하면 Cloudflare가 business-critical production에는 custom domain이나 route를 권장한다는 점도 안내한다. TTY에서는 한 번 확인받고 비인터랙티브에서는 `--yes`를 요구한다. `--dry-run`은 같은 계획을 출력하고 mutation 없이 종료한다.
@@ -366,7 +368,7 @@ public 저장소이면 source, `config.toml`의 Bootstrap Owner 이메일, Actio
 2. commit 전 secretlint
 3. 현재 변경이 있으면 제공받은 message로 전체 자동 commit
 4. 선택한 visibility의 GitHub repository 생성 또는 기존 `origin`과 visibility 검증
-5. repository Actions secret `CLOUDFLARE_API_TOKEN` 설정
+5. repository Actions secret `CLOUDFLARE_API_TOKEN`과 선택형 Google OAuth secret 설정
 6. `main` push 또는 변경이 없을 때 `workflow_dispatch`
 7. 해당 GitHub Actions run 발견 및 완료 대기
 8. `git fetch origin main` 뒤 workflow의 lifecycle commit을 `git merge --ff-only origin/main`으로 동기화
@@ -426,7 +428,7 @@ token을 shell history에 남기는 option은 제공하지 않는다.
 
 ## 9. 배포 이후
 
-Application CI는 PR만 검증한다. `main` push는 Application Deploy만 시작하며, 단일 job이 의존성을 한 번 설치하고 production credential 없이 `pnpm check`를 실행한다. 이 검증이 성공한 뒤에만 mutation step에 repository secret을 주입하고, 검증에서 만든 CLI를 재사용해 운영 전용 Vite build, D1 migration, Worker 배포, 기존 IdP를 보존한 OTP 보장, 역할 그룹과 경로별 Access application·policy 배포, Worker secret 주입, smoke check와 lifecycle commit을 수행한다. smoke check는 Cloudflare API에서 Worker deployment가 active인지 확인하고 인증되지 않은 private production URL이 Access 로그인 또는 거부 응답을 반환하며 public health 경로는 접근 가능한지 검사한다. 공통 기반은 CI용 Access service token이나 인증된 운영 데이터 요청을 사용하지 않는다.
+Application CI는 PR만 검증한다. `main` push는 Application Deploy만 시작하며, 단일 job이 의존성을 한 번 설치하고 production credential 없이 `pnpm check`를 실행한다. 이 검증이 성공한 뒤에만 mutation step에 repository secret을 주입하고, 검증에서 만든 CLI를 재사용해 운영 전용 Vite build, D1 migration, Worker 배포, 기존 IdP를 보존한 OTP와 선택형 Google provider 보장, 역할 그룹과 경로별 Access application·policy 배포, Worker secret 주입, smoke check와 lifecycle commit을 수행한다. 두 로그인 공급자를 사용하면 application은 둘을 명시적으로 허용하고 자동 IdP redirect를 끈다. smoke check는 Cloudflare API에서 Worker deployment가 active인지 확인하고 인증되지 않은 private production URL이 Access 로그인 또는 거부 응답을 반환하며 public health 경로는 접근 가능한지 검사한다. 공통 기반은 CI용 Access service token이나 인증된 운영 데이터 요청을 사용하지 않는다.
 
 첫 배포 뒤 local branch가 workflow의 lifecycle commit까지 동기화되면 `pnpm cli dev`는 기준 remote D1을 사용한다. 첫 remote 연결에 Cloudflare 계정 로그인이 필요하면 TTY에서 브라우저 인증을 수행하고 machine mode에서는 구조화 오류로 사용자 handoff를 요청한다. 운영 migration과 destroy는 계속 Actions capability 안에서만 실행한다.
 

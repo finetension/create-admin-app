@@ -7,6 +7,7 @@ export {
 	Database as DatabaseIcon,
 	Inbox as InboxIcon,
 	LayoutDashboard as LayoutDashboardIcon,
+	LogOut as LogOutIcon,
 	Menu as MenuIcon,
 	ShieldCheck as ShieldCheckIcon,
 	Trash2 as TrashIcon,

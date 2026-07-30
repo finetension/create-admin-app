@@ -55,7 +55,7 @@ pnpm create @finetension/admin-app my-company
 
 로컬 `pnpm cli deploy`는 설정 확인, commit 전 secret 검사, Git commit·push, GitHub repository secret 구성, workflow 요청과 완료 대기, lifecycle commit의 local fast-forward까지만 수행한다. 전체 검증, D1 migration, Worker와 Access 변경은 저장소의 guarded Actions에서 실행한다.
 
-Actions는 같은 CLI의 숨겨진 `internal deploy`와 `internal destroy`를 사용한다. 일반 help에서는 숨기고 `help --all --json`에서는 CI 전용 조건과 위험도를 명시한다. 내부 명령은 GitHub Actions 환경, `main` ref, 허용 event와 작업별 capability를 모두 검증하고 process의 `CLOUDFLARE_API_TOKEN`만 사용한다. OS credential store를 읽는 로컬 호출은 Cloudflare 요청 전에 거부한다.
+Actions는 같은 CLI의 숨겨진 `internal deploy`와 `internal destroy`를 사용한다. 일반 help에서는 숨기고 `help --all --json`에서는 CI 전용 조건과 위험도를 명시한다. 내부 명령은 GitHub Actions 환경, `main` ref, 허용 event와 작업별 capability를 모두 검증하고 process의 `CLOUDFLARE_API_TOKEN`과, 설정한 경우에만 Google OAuth 자격 증명을 사용한다. OS credential store를 읽는 로컬 호출은 Cloudflare 요청 전에 거부한다.
 
 `pnpm dev`는 DB 모드를 자동 선택한다.
 
@@ -77,7 +77,7 @@ Remote D1 binding은 첫 연결에 Cloudflare 계정 인증이 필요하다. TTY
 
 프로젝트 CLI로 Cloudflare를 연결하면 Dashboard의 기본 `Write all resources` 템플릿으로 만든 계정 소유 Account API Token 하나를 사용한다. CLI는 token을 받기 전에 전체 계정·Zone 변경 권한을 안내하고, 저장하기 전에 token 자체, Workers, D1, Workers KV, Access, Zero Trust organization·identity provider와 Zone 조회를 읽기 전용으로 검증한다. 다른 Account API Token의 목록이나 변경 권한은 배포에 필요하지 않으므로 요구하지 않는다. token은 계정 단위 OS credential store와 대상 GitHub 저장소의 repository Actions secret에 등록한다. Application Deploy는 같은 값을 Worker의 암호화된 `ACCESS_MANAGEMENT_TOKEN` secret으로 주입한다. Worker 코드는 이 별도 binding 이름만 사용해 이후 전용 제한 토큰으로 교체할 수 있게 한다. PR과 fork workflow는 이 secret을 참조하지 않는다.
 
-Zero Trust organization이 없으면 인터랙티브 CLI가 Dashboard onboarding을 열고 완료 뒤 재검사하며 machine mode는 URL을 포함한 구조화 오류로 실패한다. Application Deploy workflow는 기존 IdP를 보존하면서 OTP identity provider, Owner·Admin·Member 그룹과 Base·Admin·Owner application 및 명시적 Public 경로 정책을 멱등하게 보장한다. 로컬 token도 write 권한을 가지므로 Actions는 token 자체의 보안 경계가 아니라 제품이 지원하는 인프라 mutation·감사 경로다. CLI는 로컬 mutation을 노출하지 않는다. 런타임에서 허용하는 Cloudflare mutation은 Owner 전용 API의 프로젝트 그룹 구성원 변경과 사용자 세션 revoke뿐이다.
+Zero Trust organization이 없으면 인터랙티브 CLI가 Dashboard onboarding을 열고 완료 뒤 재검사하며 machine mode는 URL을 포함한 구조화 오류로 실패한다. Application Deploy workflow는 기존 IdP를 보존하면서 OTP와 선택형 Google identity provider, Owner·Admin·Member 그룹과 Base·Admin·Owner application 및 명시적 Public 경로 정책을 멱등하게 보장한다. 로컬 token도 write 권한을 가지므로 Actions는 token 자체의 보안 경계가 아니라 제품이 지원하는 인프라 mutation·감사 경로다. CLI는 로컬 mutation을 노출하지 않는다. 런타임에서 허용하는 Cloudflare mutation은 Owner 전용 API의 프로젝트 그룹 구성원 변경과 사용자 세션 revoke뿐이다.
 
 ## 구조
 
@@ -123,4 +123,4 @@ Zero Trust organization이 없으면 인터랙티브 CLI가 Dashboard onboarding
 
 개발 환경에는 Access가 없으므로 `bootstrap_owner_email`, 명시적인 `DEV_ACCESS_ROLE`과 `DEV_ACCESS_PUBLIC`을 local binding으로만 주입한다. 기본 역할은 Owner이며 `pnpm cli dev --database local --role owner|admin|member`로 인증 역할을, `pnpm cli dev --database local --public`으로 비인증 접근을 확인한다. 인증 역할은 Bootstrap Owner 이메일을 actor로 사용하고 public 접근은 인증 사용자를 만들지 않는다. 운영 배포에는 개발용 binding을 포함하지 않고 개발용 역할 header를 허용하지 않는다.
 
-Owner 구성원 관리 화면은 local D1 개발에서 재시작 시 사라지는 메모리 구성원으로 UX와 guard를 시뮬레이션한다. 이 상태는 파일이나 D1에 저장하지 않고 Cloudflare를 변경하지도 않는다. 운영 Worker에서만 실제 Access 그룹과 account-wide per-user revoke를 호출한다.
+Owner 구성원 관리 화면은 local D1 개발에서 재시작 시 사라지는 메모리 구성원과 표시 이름으로 UX와 guard를 시뮬레이션한다. 이 상태는 파일이나 D1에 저장하지 않고 Cloudflare를 변경하지도 않는다. 운영 Worker에서만 실제 Access 그룹과 account-wide per-user revoke를 호출하고, D1에는 역할 사본이 아니라 표시 이름 프로필과 append-only 감사 기록만 저장한다.

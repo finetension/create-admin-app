@@ -3,6 +3,7 @@ import {
 	Input,
 	Label,
 	ListBox,
+	NumberField,
 	Select,
 	TextArea,
 	TextField,
@@ -24,6 +25,8 @@ type TextInputFieldProps = BaseFieldProps & {
 	pattern?: string;
 	type?: React.HTMLInputTypeAttribute;
 	maxLength?: number;
+	min?: string;
+	max?: string;
 };
 
 export function TextInputField({
@@ -49,6 +52,54 @@ export function TextInputField({
 			/>
 			{description && <Description>{description}</Description>}
 		</TextField>
+	);
+}
+
+type NumberInputFieldProps = BaseFieldProps & {
+	value: number;
+	onValueChange: (value: number) => void;
+	maxValue?: number;
+	minValue?: number;
+	showStepControls?: boolean;
+	step?: number;
+};
+
+export function NumberInputField({
+	label,
+	description,
+	className,
+	required,
+	isDisabled,
+	value,
+	onValueChange,
+	maxValue,
+	minValue = 0,
+	showStepControls = true,
+	step,
+}: NumberInputFieldProps) {
+	return (
+		<NumberField
+			className={className}
+			formatOptions={{ useGrouping: true }}
+			fullWidth
+			isDisabled={isDisabled}
+			isRequired={required}
+			maxValue={maxValue}
+			minValue={minValue}
+			step={step}
+			value={value}
+			onChange={onValueChange}
+		>
+			<Label>{label}</Label>
+			<NumberField.Group
+				className={showStepControls ? undefined : "grid-cols-1"}
+			>
+				{showStepControls && <NumberField.DecrementButton />}
+				<NumberField.Input className="min-w-0 flex-1" />
+				{showStepControls && <NumberField.IncrementButton />}
+			</NumberField.Group>
+			{description && <Description>{description}</Description>}
+		</NumberField>
 	);
 }
 

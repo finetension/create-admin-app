@@ -4,6 +4,7 @@ import { secureHeaders } from "hono/secure-headers";
 import { AppError } from "./lib/errors";
 import { authenticate } from "./middleware/auth";
 import { accessMembers } from "./routes/access-members";
+import { auditLogs } from "./routes/audit-logs";
 import type { AppEnv } from "./types";
 
 const app = new Hono<AppEnv>().basePath("/api");
@@ -30,6 +31,7 @@ app.get("/me", (c) => c.json({ data: c.get("user") }));
 app.get("/admin/me", (c) => c.json({ data: c.get("user") }));
 app.get("/owner/me", (c) => c.json({ data: c.get("user") }));
 app.route("/owner", accessMembers);
+app.route("/owner", auditLogs);
 
 app.notFound((c) =>
 	c.json(

@@ -46,7 +46,11 @@ export interface AccessManagementBindings {
 export interface AccessManagementClient {
 	listMembers(): Promise<AccessMember[]>;
 	resolveRole(email: string): Promise<AccessRole>;
-	setRole(email: string, role: AccessRole): Promise<AccessMember[]>;
+	setRole(
+		email: string,
+		role: AccessRole,
+		displayName?: string,
+	): Promise<AccessMember[]>;
 	remove(email: string): Promise<AccessMember[]>;
 }
 
@@ -458,7 +462,7 @@ export function createDevelopmentAccessManagementClient(
 			}
 			return member.role;
 		},
-		async setRole(emailInput, role) {
+		async setRole(emailInput, role, displayName) {
 			const bootstrapOwnerEmail = developmentBootstrapOwner(env);
 			const email = emailSchema.parse(emailInput);
 			if (email === bootstrapOwnerEmail && role !== "owner") {
@@ -470,10 +474,15 @@ export function createDevelopmentAccessManagementClient(
 			}
 			const members = developmentMemberState(env);
 			const current = members.find((member) => member.email === email);
+			const nextDisplayName =
+				displayName === undefined
+					? current?.displayName
+					: displayName.trim() || undefined;
 			return save([
 				...members.filter((member) => member.email !== email),
 				{
 					email,
+					...(nextDisplayName ? { displayName: nextDisplayName } : {}),
 					role,
 					bootstrap: current?.bootstrap ?? false,
 				},

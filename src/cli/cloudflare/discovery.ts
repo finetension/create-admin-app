@@ -1,5 +1,6 @@
 import { ofetch } from "ofetch";
 import { z } from "zod";
+import { googleAccessIdentityProviderName } from "../core/config.ts";
 import { configurationError, externalError } from "../core/error.ts";
 
 const apiBase = "https://api.cloudflare.com/client/v4";
@@ -28,6 +29,7 @@ const organizationSchema = z.object({
 });
 
 const identityProviderSchema = z.object({
+	name: z.string(),
 	type: z.string(),
 });
 
@@ -37,6 +39,7 @@ export interface ZeroTrustInspection {
 	exists: boolean;
 	authDomain?: string;
 	oneTimePin: boolean;
+	google: boolean;
 }
 
 async function request<T>(
@@ -160,13 +163,18 @@ export async function inspectZeroTrustOrganization(
 			exists: true,
 			authDomain: organization.auth_domain,
 			oneTimePin: providers.some((provider) => provider.type === "onetimepin"),
+			google: providers.some(
+				(provider) =>
+					provider.type === "google" &&
+					provider.name === googleAccessIdentityProviderName,
+			),
 		};
 	} catch (error) {
 		if (
 			error instanceof Error &&
 			/Access is not enabled|HTTP 404|code.?1001/i.test(error.message)
 		) {
-			return { exists: false, oneTimePin: false };
+			return { exists: false, oneTimePin: false, google: false };
 		}
 		throw error;
 	}

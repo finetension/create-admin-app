@@ -26,6 +26,17 @@ export default defineCommand({
 			);
 		}
 		const config = await loadDeploymentContext();
+		if (
+			config.access.googleLogin &&
+			(!process.env.GOOGLE_OAUTH_CLIENT_ID?.trim() ||
+				!process.env.GOOGLE_OAUTH_CLIENT_SECRET?.trim())
+		) {
+			throw configurationError(
+				"missing_google_oauth_credentials",
+				"Google 로그인용 repository secret이 없습니다.",
+				"대상 GitHub repository에 GOOGLE_OAUTH_CLIENT_ID와 GOOGLE_OAUTH_CLIENT_SECRET Actions secret을 설정하세요.",
+			);
+		}
 		printDeploymentSummary(config);
 		await deploy(config);
 		const lifecycleChanged = await markProductionDeployed();

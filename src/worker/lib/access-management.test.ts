@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { accessEmptyGroupEmails } from "../../shared/contracts";
-import { createAccessManagementClient } from "./access-management";
+import {
+	createAccessManagementClient,
+	createDevelopmentAccessManagementClient,
+} from "./access-management";
 
 const bindings = {
 	ACCESS_ACCOUNT_ID: "a".repeat(32),
@@ -142,5 +145,30 @@ describe("Access role management", () => {
 				"other-owner@example.com",
 			),
 		).rejects.toMatchObject({ code: "LAST_OWNER_PROTECTED" });
+	});
+
+	it("keeps local display names restart-ephemeral and separate from roles", async () => {
+		const client = createDevelopmentAccessManagementClient({
+			...bindings,
+			ACCESS_BOOTSTRAP_OWNER_EMAIL: "local-name-test@example.com",
+		});
+
+		await expect(
+			client.setRole("member-name-test@example.com", "member", " 김청년 "),
+		).resolves.toContainEqual({
+			email: "member-name-test@example.com",
+			displayName: "김청년",
+			role: "member",
+			bootstrap: false,
+		});
+
+		await expect(
+			client.setRole("member-name-test@example.com", "admin", "김새이름"),
+		).resolves.toContainEqual({
+			email: "member-name-test@example.com",
+			displayName: "김새이름",
+			role: "admin",
+			bootstrap: false,
+		});
 	});
 });

@@ -46,21 +46,26 @@ function errorMessage(error: unknown): string {
 function MemberRow({
 	member,
 	isPending,
-	onRoleChange,
+	onUpdate,
 	onRemove,
 }: {
 	member: AccessMember;
 	isPending: boolean;
-	onRoleChange: (role: AccessRole) => void;
+	onUpdate: (role: AccessRole, displayName: string) => void;
 	onRemove: () => void;
 }) {
 	const [draftRole, setDraftRole] = useState(member.role);
+	const [draftDisplayName, setDraftDisplayName] = useState(
+		member.displayName ?? "",
+	);
+	const visibleName = member.displayName?.trim() || member.email;
+	const normalizedDraftName = draftDisplayName.trim();
 
 	return (
 		<div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-0.5 border-b border-border py-3 last:border-b-0 sm:grid-cols-[auto_minmax(0,1fr)_auto_auto]">
 			<Avatar className="row-span-2" size="sm" variant="soft">
 				<Avatar.Fallback>
-					{member.email.slice(0, 1).toUpperCase()}
+					{visibleName.slice(0, 1).toUpperCase()}
 				</Avatar.Fallback>
 			</Avatar>
 			<Typography.Paragraph
@@ -68,77 +73,84 @@ function MemberRow({
 				weight="medium"
 				onClickCapture={(event) => event.preventDefault()}
 			>
-				{member.email}
+				{visibleName}
 			</Typography.Paragraph>
-			<div
-				className={`col-start-3 row-span-2 flex items-center ${
-					member.bootstrap
-						? "sm:col-start-3 sm:col-span-2 sm:justify-self-end"
-						: "sm:col-start-4"
-				}`}
-			>
-				{member.bootstrap ? (
-					<Chip color="accent" size="sm" variant="soft">
-						{roleLabel(member.role)}
-					</Chip>
-				) : (
-					<Modal>
-						<Button
-							isDisabled={isPending}
-							size="sm"
-							variant="ghost"
-							onPress={() => setDraftRole(member.role)}
+			<div className="col-start-3 row-span-2 flex items-center sm:col-start-4">
+				<Modal>
+					<Button
+						isDisabled={isPending}
+						variant="ghost"
+						onPress={() => {
+							setDraftRole(member.role);
+							setDraftDisplayName(member.displayName ?? "");
+						}}
+					>
+						관리
+					</Button>
+					<Modal.Backdrop>
+						<Modal.Container
+							className="sm:p-10"
+							placement="center"
+							scroll="inside"
+							size="full"
 						>
-							관리
-						</Button>
-						<Modal.Backdrop>
-							<Modal.Container placement="center" size="sm">
-								<Modal.Dialog>
-									{({ close }) => (
-										<>
-											<Modal.CloseTrigger />
-											<Modal.Header>
-												<Modal.Heading>구성원 관리</Modal.Heading>
-												<Typography.Paragraph color="muted" size="sm">
-													{member.email}
-												</Typography.Paragraph>
-											</Modal.Header>
-											<Modal.Body>
-												<Select
-													fullWidth
-													aria-label={`${member.email} 권한`}
-													isDisabled={isPending}
-													selectedKey={draftRole}
-													onSelectionChange={(key) =>
-														setDraftRole(String(key) as AccessRole)
-													}
-												>
-													<Label>권한</Label>
-													<Select.Trigger>
-														<Select.Value />
-														<Select.Indicator />
-													</Select.Trigger>
-													<Select.Popover>
-														<ListBox>
-															{roleOptions.map((option) => (
-																<ListBox.Item
-																	id={option.value}
-																	key={option.value}
-																	textValue={option.label}
-																>
-																	{option.label}
-																	<ListBox.ItemIndicator />
-																</ListBox.Item>
-															))}
-														</ListBox>
-													</Select.Popover>
-												</Select>
-												<Typography.Paragraph color="muted">
-													권한 변경은 Cloudflare Access 정책과 기존 세션에
-													반영됩니다.
-												</Typography.Paragraph>
-											</Modal.Body>
-											<Modal.Footer>
+							<Modal.Dialog className="sm:h-auto sm:min-h-0 sm:max-w-sm sm:rounded-3xl sm:shadow-overlay">
+								{({ close }) => (
+									<>
+										<Modal.CloseTrigger />
+										<Modal.Header>
+											<Modal.Heading>구성원 관리</Modal.Heading>
+											<Typography.Paragraph color="muted" size="sm">
+												{member.email}
+											</Typography.Paragraph>
+										</Modal.Header>
+										<Modal.Body className="grid content-start gap-4">
+											<TextInputField
+												description="비워두면 목록에 이메일이 표시됩니다."
+												isDisabled={isPending}
+												label="이름"
+												maxLength={80}
+												placeholder="표시할 이름"
+												value={draftDisplayName}
+												onValueChange={setDraftDisplayName}
+											/>
+											<Select
+												fullWidth
+												aria-label={`${member.email} 권한`}
+												isDisabled={isPending || member.bootstrap}
+												selectedKey={draftRole}
+												onSelectionChange={(key) =>
+													setDraftRole(String(key) as AccessRole)
+												}
+											>
+												<Label>권한</Label>
+												<Select.Trigger>
+													<Select.Value />
+													<Select.Indicator />
+												</Select.Trigger>
+												<Select.Popover>
+													<ListBox>
+														{roleOptions.map((option) => (
+															<ListBox.Item
+																id={option.value}
+																key={option.value}
+																textValue={option.label}
+															>
+																{option.label}
+																<ListBox.ItemIndicator />
+															</ListBox.Item>
+														))}
+													</ListBox>
+												</Select.Popover>
+											</Select>
+											<Typography.Paragraph color="muted">
+												{member.bootstrap
+													? "초기 소유자의 역할은 변경할 수 없습니다."
+													: "권한 변경은 Cloudflare Access 정책과 기존 세션에 반영됩니다."}
+											</Typography.Paragraph>
+										</Modal.Body>
+										<Modal.Footer>
+											{!member.bootstrap && (
 												<AlertDialog>
 													<Button
 														className="me-auto"
@@ -160,7 +172,8 @@ function MemberRow({
 																	<Typography.Paragraph color="muted">
 																		{member.email}의 이 프로젝트 역할이
 																		제거되고, Cloudflare 계정의 기존 Access
-																		세션도 취소됩니다.
+																		세션도 취소됩니다. 표시 이름과 감사 기록은
+																		운영 이력으로 보존됩니다.
 																	</Typography.Paragraph>
 																</AlertDialog.Body>
 																<AlertDialog.Footer>
@@ -180,52 +193,64 @@ function MemberRow({
 														</AlertDialog.Container>
 													</AlertDialog.Backdrop>
 												</AlertDialog>
-												<Button variant="secondary" onPress={close}>
-													취소
-												</Button>
-												<Button
-													isDisabled={draftRole === member.role || isPending}
-													isPending={isPending}
-													onPress={() => {
-														onRoleChange(draftRole);
-														close();
-													}}
-												>
-													저장
-												</Button>
-											</Modal.Footer>
-										</>
-									)}
-								</Modal.Dialog>
-							</Modal.Container>
-						</Modal.Backdrop>
-					</Modal>
-				)}
+											)}
+											<Button variant="secondary" onPress={close}>
+												취소
+											</Button>
+											<Button
+												isDisabled={
+													(draftRole === member.role &&
+														normalizedDraftName ===
+															(member.displayName ?? "")) ||
+													isPending
+												}
+												isPending={isPending}
+												onPress={() => {
+													onUpdate(draftRole, normalizedDraftName);
+													close();
+												}}
+											>
+												저장
+											</Button>
+										</Modal.Footer>
+									</>
+								)}
+							</Modal.Dialog>
+						</Modal.Container>
+					</Modal.Backdrop>
+				</Modal>
 			</div>
-			{member.bootstrap ? (
-				<Typography.Paragraph
-					className="col-start-2 row-start-2"
-					color="muted"
-					size="xs"
-				>
-					초기 소유자 · 변경 불가
-				</Typography.Paragraph>
-			) : (
+			<div className="col-start-2 row-start-2 flex min-w-0 flex-wrap items-center gap-1.5 sm:col-start-2 sm:col-span-2">
+				{member.displayName && (
+					<Typography.Paragraph
+						truncate
+						color="muted"
+						size="xs"
+						onClickCapture={(event) => event.preventDefault()}
+					>
+						{member.email}
+					</Typography.Paragraph>
+				)}
 				<Chip
-					className="col-start-2 row-start-2 justify-self-start sm:col-start-3 sm:row-start-1 sm:row-span-2 sm:self-center"
 					color={member.role === "owner" ? "accent" : "default"}
 					size="sm"
 					variant="soft"
 				>
 					{roleLabel(member.role)}
 				</Chip>
-			)}
+				{member.bootstrap && (
+					<Typography.Paragraph color="muted" size="xs">
+						초기 소유자
+					</Typography.Paragraph>
+				)}
+			</div>
 		</div>
 	);
 }
 
 export function AccessMemberManager() {
 	const queryClient = useQueryClient();
+	const [displayName, setDisplayName] = useState("");
 	const [email, setEmail] = useState("");
 	const [role, setRole] = useState<AccessRole>("member");
 	const members = useQuery({
@@ -236,14 +261,23 @@ export function AccessMemberManager() {
 	const mutation = useMutation({
 		mutationFn: (
 			input:
-				| { kind: "set"; email: string; role: AccessRole }
+				| {
+						kind: "set";
+						email: string;
+						role: AccessRole;
+						displayName: string;
+				  }
 				| { kind: "remove"; email: string },
 		) =>
 			input.kind === "set"
-				? api.accessMembers.setRole(input.email, { role: input.role })
+				? api.accessMembers.setRole(input.email, {
+						role: input.role,
+						displayName: input.displayName,
+					})
 				: api.accessMembers.remove(input.email),
 		onSuccess: (data: AccessMembers) => {
 			queryClient.setQueryData(["access-members"], data);
+			setDisplayName("");
 			setEmail("");
 			setRole("member");
 		},
@@ -275,7 +309,7 @@ export function AccessMemberManager() {
 						현재 구성원
 					</Typography.Heading>
 					<Typography.Paragraph color="muted" size="xs">
-						역할 변경은 Access 정책과 세션에 즉시 반영됩니다.
+						역할 변경은 Access 정책과 기존 로그인 세션에 즉시 반영됩니다.
 					</Typography.Paragraph>
 				</div>
 				<Chip size="sm" variant="soft">
@@ -294,11 +328,12 @@ export function AccessMemberManager() {
 							key={member.email}
 							member={member}
 							isPending={mutation.isPending}
-							onRoleChange={(nextRole) =>
+							onUpdate={(nextRole, nextDisplayName) =>
 								mutation.mutate({
 									kind: "set",
 									email: member.email,
 									role: nextRole,
+									displayName: nextDisplayName,
 								})
 							}
 							onRemove={() =>
@@ -320,43 +355,55 @@ export function AccessMemberManager() {
 							구성원 추가
 						</Typography.Heading>
 						<Typography.Paragraph color="muted" size="xs">
-							이메일과 역할을 선택해 Access에 반영합니다.
+							이름, 이메일과 역할을 입력해 Access 접근 권한을 부여합니다.
 						</Typography.Paragraph>
 					</div>
 				</div>
 				<Form
-					className="grid gap-3 border-y border-border py-4 sm:grid-cols-[minmax(0,1fr)_10rem_auto] sm:items-end"
+					className="grid gap-3 border-y border-border py-4 md:grid-cols-2 md:items-end lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)_10rem_auto]"
 					onSubmit={(event) => {
 						event.preventDefault();
+						const normalizedDisplayName = displayName.trim();
 						const normalizedEmail = email.trim().toLowerCase();
-						if (!normalizedEmail) return;
+						if (!normalizedDisplayName || !normalizedEmail) return;
 						mutation.mutate({
 							kind: "set",
+							displayName: normalizedDisplayName,
 							email: normalizedEmail,
 							role,
 						});
 					}}
 				>
 					<TextInputField
+						isDisabled={mutation.isPending}
+						label="이름"
+						maxLength={80}
+						placeholder="홍길동"
+						required
+						value={displayName}
+						onValueChange={setDisplayName}
+					/>
+					<TextInputField
+						isDisabled={mutation.isPending}
 						label="이메일"
+						placeholder="teammate@example.com"
+						required
 						type="email"
 						value={email}
 						onValueChange={setEmail}
-						required
-						isDisabled={mutation.isPending}
-						placeholder="teammate@example.com"
 					/>
 					<SelectField
-						label="역할"
-						value={role}
-						options={roleOptions}
-						onValueChange={(value) => setRole(value as AccessRole)}
 						isDisabled={mutation.isPending}
+						label="역할"
+						options={roleOptions}
+						value={role}
+						onValueChange={(value) => setRole(value as AccessRole)}
 					/>
 					<Button
+						className="md:col-span-2 lg:col-span-1"
+						isPending={mutation.isPending}
 						type="submit"
 						variant="primary"
-						isPending={mutation.isPending}
 					>
 						<UserPlusIcon size={18} />
 						추가

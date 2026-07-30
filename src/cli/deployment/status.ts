@@ -202,7 +202,7 @@ function d1Check(probeResult: Probe<D1Resource | null>) {
 function accessMissingParts(access: AccessInspection): string[] {
 	return [
 		!access.organization && "Zero Trust organization",
-		!access.identityProvider && "One-time PIN identity provider",
+		!access.identityProvider && "configured Access identity providers",
 		!access.groups && "Owner/Admin/Member role groups",
 		!access.applications && "path-specific Access applications",
 		!access.policies && "exact group policies",
@@ -247,7 +247,7 @@ function accessCheck(
 		"access",
 		"ok",
 		"access_ready",
-		"OTP, 역할 그룹과 경로별 Access 정책이 적용되어 있습니다.",
+		"로그인 공급자, 역할 그룹과 경로별 Access 정책이 적용되어 있습니다.",
 		undefined,
 		{
 			team_domain: access.teamDomain,

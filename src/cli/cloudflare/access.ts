@@ -39,6 +39,9 @@ const applicationSchema = z.object({
 	type: z.string(),
 	domain: z.string().optional(),
 	aud: z.string(),
+	allowed_idps: z.array(z.string()).optional(),
+	auto_redirect_to_identity: z.boolean().optional(),
+	custom_deny_url: z.string().optional(),
 	destinations: z
 		.array(
 			z.object({
@@ -59,6 +62,13 @@ const policySchema = z.object({
 type AccessGroup = z.output<typeof groupSchema>;
 type AccessApplication = z.output<typeof applicationSchema>;
 type AccessPolicy = z.output<typeof policySchema>;
+
+export function findManagedGoogleIdentityProvider(
+	providers: z.output<typeof identityProviderSchema>[],
+	name: string,
+): z.output<typeof identityProviderSchema> | undefined {
+	return providers.find((item) => item.type === "google" && item.name === name);
+}
 
 export interface AccessResult {
 	teamDomain: string;
@@ -89,6 +99,7 @@ interface ApplicationDefinition {
 	destinations: string[];
 	decision: "allow" | "bypass";
 	groupRoles: AccessRole[];
+	customDenyUrl?: string;
 }
 
 export function resolveAccessApiToken(
@@ -119,6 +130,7 @@ function applicationDefinitions(
 			destinations: [hostname],
 			decision: "allow",
 			groupRoles: ["owner", "admin", "member"],
+			customDenyUrl: `https://${hostname}/public/access-denied`,
 		},
 		{
 			kind: "admin",
@@ -132,6 +144,7 @@ function applicationDefinitions(
 			],
 			decision: "allow",
 			groupRoles: ["owner", "admin"],
+			customDenyUrl: `https://${hostname}/public/access-denied`,
 		},
 		{
 			kind: "owner",
@@ -145,6 +158,7 @@ function applicationDefinitions(
 			],
 			decision: "allow",
 			groupRoles: ["owner"],
+			customDenyUrl: `https://${hostname}/public/access-denied`,
 		},
 		{
 			kind: "public",
@@ -188,16 +202,37 @@ function emailRules(group: AccessGroup | undefined): string[] {
 	].sort();
 }
 
-function findApplications(
+export function findApplications(
 	applications: AccessApplication[],
 	config: DeploymentConfig,
 ): Partial<Record<AccessApplicationKind, AccessApplication>> {
+	function destinations(application: AccessApplication): string[] {
+		const configured = (application.destinations ?? []).flatMap(
+			(destination) => destination.uri ?? [],
+		);
+		return [
+			...new Set(
+				(configured.length > 0
+					? configured
+					: application.domain
+						? [application.domain]
+						: []
+				).map((uri) => uri.replace(/^https?:\/\//, "").replace(/\/$/, "")),
+			),
+		].sort();
+	}
+
 	return Object.fromEntries(
 		applicationDefinitions(config).flatMap((definition) => {
+			const expectedDestinations = definition.destinations
+				.map((uri) => uri.replace(/^https?:\/\//, "").replace(/\/$/, ""))
+				.sort();
 			const application = applications.find(
 				(candidate) =>
 					candidate.type === "self_hosted" &&
-					candidate.name === definition.name,
+					(candidate.name === definition.name ||
+						JSON.stringify(destinations(candidate)) ===
+							JSON.stringify(expectedDestinations)),
 			);
 			return application ? [[definition.kind, application]] : [];
 		}),
@@ -379,9 +414,33 @@ export async function inspectAccess(
 	) as Record<AccessRole, string[]>;
 	const allMembers = accessRoles.flatMap((role) => memberLists[role]);
 	const completeGroups = accessRoles.every((role) => Boolean(groups[role]));
-	const completeApplications = accessApplicationKinds.every((kind) =>
-		Boolean(applications[kind]),
+	const oneTimePin = providers.find((item) => item.type === "onetimepin");
+	const google = findManagedGoogleIdentityProvider(
+		providers,
+		config.access.googleIdentityProviderName,
 	);
+	const expectedIdentityProviderIds = [
+		...(oneTimePin ? [oneTimePin.id] : []),
+		...(config.access.googleLogin && google ? [google.id] : []),
+	].sort();
+	const identityProvider =
+		Boolean(oneTimePin) && (!config.access.googleLogin || Boolean(google));
+	const definitions = applicationDefinitions(config);
+	const completeApplications =
+		identityProvider &&
+		accessApplicationKinds.every((kind) => {
+			const application = applications[kind];
+			const definition = definitions.find((item) => item.kind === kind);
+			return (
+				Boolean(application) &&
+				Boolean(definition) &&
+				JSON.stringify([...(application?.allowed_idps ?? [])].sort()) ===
+					JSON.stringify(expectedIdentityProviderIds) &&
+				application?.auto_redirect_to_identity ===
+					(expectedIdentityProviderIds.length === 1) &&
+				application?.custom_deny_url === definition?.customDenyUrl
+			);
+		});
 	const policies =
 		completeGroups &&
 		completeApplications &&
@@ -389,7 +448,7 @@ export async function inspectAccess(
 	return {
 		available: true,
 		organization: true,
-		identityProvider: providers.some((item) => item.type === "onetimepin"),
+		identityProvider,
 		groups: completeGroups,
 		applications: completeApplications,
 		policies,
@@ -466,13 +525,8 @@ async function ensureOrganization(
 async function ensureOneTimePinIdentityProvider(
 	api: CloudflareApi,
 	config: DeploymentConfig,
+	providers: z.output<typeof identityProviderSchema>[],
 ): Promise<z.output<typeof identityProviderSchema>> {
-	const providers = await api.request(
-		"/access/identity_providers?per_page=100",
-		{
-			schema: z.array(identityProviderSchema),
-		},
-	);
 	let provider = providers.find((item) => item.type === "onetimepin");
 	if (!provider) {
 		provider = await api.request("/access/identity_providers", {
@@ -486,6 +540,49 @@ async function ensureOneTimePinIdentityProvider(
 		});
 	}
 	return provider;
+}
+
+function googleCredentials(environment: NodeJS.ProcessEnv = process.env): {
+	clientId: string;
+	clientSecret: string;
+} {
+	const clientId = environment.GOOGLE_OAUTH_CLIENT_ID?.trim();
+	const clientSecret = environment.GOOGLE_OAUTH_CLIENT_SECRET?.trim();
+	if (!clientId || !clientSecret) {
+		throw new Error(
+			"Google 로그인을 재현하려면 GOOGLE_OAUTH_CLIENT_ID와 GOOGLE_OAUTH_CLIENT_SECRET repository secret이 필요합니다.",
+		);
+	}
+	return { clientId, clientSecret };
+}
+
+async function ensureGoogleIdentityProvider(
+	api: CloudflareApi,
+	config: DeploymentConfig,
+	providers: z.output<typeof identityProviderSchema>[],
+): Promise<z.output<typeof identityProviderSchema>> {
+	const credentials = googleCredentials();
+	const existing = findManagedGoogleIdentityProvider(
+		providers,
+		config.access.googleIdentityProviderName,
+	);
+	return api.request(
+		existing
+			? `/access/identity_providers/${existing.id}`
+			: "/access/identity_providers",
+		{
+			schema: identityProviderSchema,
+			method: existing ? "PUT" : "POST",
+			body: {
+				name: config.access.googleIdentityProviderName,
+				type: "google",
+				config: {
+					client_id: credentials.clientId,
+					client_secret: credentials.clientSecret,
+				},
+			},
+		},
+	);
 }
 
 async function ensureGroups(
@@ -557,7 +654,7 @@ async function ensureApplication(
 	api: CloudflareApi,
 	definition: ApplicationDefinition,
 	existing: AccessApplication | undefined,
-	identityProviderId: string,
+	identityProviderIds: string[],
 	config: DeploymentConfig,
 ): Promise<AccessApplication> {
 	const application = await api.request(
@@ -574,9 +671,14 @@ async function ensureApplication(
 					uri,
 				})),
 				session_duration: config.access.sessionDuration,
-				allowed_idps: [identityProviderId],
-				auto_redirect_to_identity: true,
+				allowed_idps: identityProviderIds,
+				auto_redirect_to_identity: identityProviderIds.length === 1,
 				app_launcher_visible: definition.kind === "base",
+				...(definition.customDenyUrl
+					? {
+							custom_deny_url: definition.customDenyUrl,
+						}
+					: {}),
 			},
 		},
 	);
@@ -626,7 +728,22 @@ export async function ensureAccess(
 	logger.start("Cloudflare Access 역할 그룹과 경로 정책을 동기화합니다");
 	const api = new CloudflareApi(config.accountId, accessToken());
 	const organization = await ensureOrganization(api);
-	const identityProvider = await ensureOneTimePinIdentityProvider(api, config);
+	const providers = await api.request(
+		"/access/identity_providers?per_page=100",
+		{
+			schema: z.array(identityProviderSchema),
+		},
+	);
+	const oneTimePin = await ensureOneTimePinIdentityProvider(
+		api,
+		config,
+		providers,
+	);
+	const identityProviderIds = [oneTimePin.id];
+	if (config.access.googleLogin) {
+		const google = await ensureGoogleIdentityProvider(api, config, providers);
+		identityProviderIds.push(google.id);
+	}
 	const groups = await ensureGroups(api, config);
 	const existingApplications = findApplications(
 		await api.request("/access/apps?per_page=100", {
@@ -640,7 +757,7 @@ export async function ensureAccess(
 			api,
 			definition,
 			existingApplications[definition.kind],
-			identityProvider.id,
+			identityProviderIds,
 			config,
 		);
 		await ensureApplicationPolicy(api, application, definition, groups);

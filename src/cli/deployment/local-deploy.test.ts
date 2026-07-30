@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	assertSafeCommitPaths,
 	classifyRemoteMain,
+	googleOAuthCredentialsFromEnvironment,
 	isWorkflowIndexingDelay,
 	localDeployPreflightArgs,
 	normalizeGitHubRemote,
@@ -11,6 +12,23 @@ import {
 describe("local deploy target discovery", () => {
 	it("keeps only the pre-push secret scan in the local preflight", () => {
 		expect(localDeployPreflightArgs).toEqual(["run", "secretlint"]);
+	});
+
+	it("accepts Google OAuth credentials only as a complete pair", () => {
+		expect(
+			googleOAuthCredentialsFromEnvironment({
+				GOOGLE_OAUTH_CLIENT_ID: " client-id ",
+				GOOGLE_OAUTH_CLIENT_SECRET: " client-secret ",
+			}),
+		).toEqual({
+			clientId: "client-id",
+			clientSecret: "client-secret",
+		});
+		expect(
+			googleOAuthCredentialsFromEnvironment({
+				GOOGLE_OAUTH_CLIENT_ID: "client-id",
+			}),
+		).toBeUndefined();
 	});
 
 	it("uses existing HTTPS and SSH GitHub origins as established targets", () => {

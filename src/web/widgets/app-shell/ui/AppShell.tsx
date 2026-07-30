@@ -1,19 +1,23 @@
 import { useEffect } from "react";
-import { Outlet, useLocation, useNavigate } from "react-router";
+import { Outlet, useLocation } from "react-router";
 import type { CurrentUser } from "../../../../shared/contracts";
+import {
+	getMobilePrimaryItems,
+	getNavigationLabel,
+	getNavigationSections,
+	getRolePath,
+	isNavigationItemActive,
+	NavigationIcon,
+} from "../../../features/app-navigation";
 import {
 	Avatar,
 	BoxesIcon,
-	Button,
 	ButtonLink,
 	Chip,
-	Dropdown,
-	Label,
-	LayoutDashboardIcon,
+	LogOutIcon,
 	MenuIcon,
 	Surface,
 	Typography,
-	UsersIcon,
 } from "../../../shared/ui";
 
 const roleLabels = {
@@ -21,97 +25,6 @@ const roleLabels = {
 	admin: "관리자",
 	member: "구성원",
 } satisfies Record<CurrentUser["role"], string>;
-
-type NavigationIconName = "dashboard" | "team";
-
-interface NavigationItem {
-	id: string;
-	label: string;
-	to: string;
-	icon: NavigationIconName;
-	roles?: CurrentUser["role"][];
-	reloadDocument?: boolean;
-}
-
-interface NavigationSection {
-	id: string;
-	label: string;
-	items: NavigationItem[];
-}
-
-const navigationSections: NavigationSection[] = [
-	{
-		id: "system",
-		label: "시스템",
-		items: [
-			{
-				id: "home",
-				label: "홈",
-				to: "/",
-				icon: "dashboard",
-			},
-		],
-	},
-	{
-		id: "management",
-		label: "관리",
-		items: [
-			{
-				id: "team",
-				label: "구성원 관리",
-				to: "/owner/team",
-				icon: "team",
-				roles: ["owner"],
-				reloadDocument: true,
-			},
-		],
-	},
-];
-
-function getNavigationSections(role: CurrentUser["role"]): NavigationSection[] {
-	return navigationSections
-		.map((section) => ({
-			...section,
-			items: section.items.filter(
-				(item) => !item.roles || item.roles.includes(role),
-			),
-		}))
-		.filter((section) => section.items.length > 0);
-}
-
-function getNavigationItems(role: CurrentUser["role"]): NavigationItem[] {
-	return getNavigationSections(role).flatMap((section) => section.items);
-}
-
-function isNavigationItemActive(
-	item: NavigationItem,
-	pathname: string,
-): boolean {
-	return item.to === "/"
-		? pathname === "/"
-		: pathname === item.to || pathname.startsWith(`${item.to}/`);
-}
-
-function getNavigationLabel(pathname: string): string | undefined {
-	return navigationSections
-		.flatMap((section) => section.items)
-		.find((item) => isNavigationItemActive(item, pathname))?.label;
-}
-
-function NavigationIcon({
-	name,
-	size = 18,
-}: {
-	name: NavigationIconName;
-	size?: number;
-}) {
-	switch (name) {
-		case "dashboard":
-			return <LayoutDashboardIcon size={size} />;
-		case "team":
-			return <UsersIcon size={size} />;
-	}
-}
 
 function DesktopNavigation({ user }: { user: CurrentUser }) {
 	const location = useLocation();
@@ -129,23 +42,28 @@ function DesktopNavigation({ user }: { user: CurrentUser }) {
 					>
 						{section.label}
 					</Typography.Paragraph>
-					{section.items.map((item) => {
-						const active = isNavigationItemActive(item, location.pathname);
-						return (
-							<ButtonLink
-								to={item.to}
-								fullWidth
-								key={item.id}
-								reloadDocument={item.reloadDocument}
-								className="h-10 justify-start"
-								variant={active ? "secondary" : "ghost"}
-								aria-current={active ? "page" : undefined}
-							>
-								<NavigationIcon name={item.icon} />
-								{item.label}
-							</ButtonLink>
-						);
-					})}
+					{section.items.map((item) => (
+						<ButtonLink
+							to={item.to}
+							fullWidth
+							key={item.id}
+							reloadDocument={item.reloadDocument}
+							className="h-10 justify-start font-medium"
+							variant={
+								isNavigationItemActive(item, location.pathname)
+									? "secondary"
+									: "ghost"
+							}
+							aria-current={
+								isNavigationItemActive(item, location.pathname)
+									? "page"
+									: undefined
+							}
+						>
+							<NavigationIcon name={item.icon} />
+							{item.label}
+						</ButtonLink>
+					))}
 				</div>
 			))}
 		</nav>
@@ -154,64 +72,89 @@ function DesktopNavigation({ user }: { user: CurrentUser }) {
 
 function MobileNavigation({ user }: { user: CurrentUser }) {
 	const location = useLocation();
-	const navigate = useNavigate();
-	const items = getNavigationItems(user.role);
-	const activeItem = items.find((item) =>
+	const primaryItems = getMobilePrimaryItems(user.role);
+	const itemClassName =
+		"h-12 min-w-0 flex-col gap-0.5 rounded-lg px-1 text-[11px] font-medium";
+	const primaryActive = primaryItems.some((item) =>
 		isNavigationItemActive(item, location.pathname),
 	);
+	const menuPath = getRolePath(user.role, "/menu");
+	const menuActive = location.pathname === menuPath || !primaryActive;
+	const navigationColumns =
+		primaryItems.length >= 3
+			? "grid-cols-4"
+			: primaryItems.length === 2
+				? "grid-cols-3"
+				: "grid-cols-2";
 
 	return (
-		<Dropdown>
-			<Button isIconOnly variant="ghost" aria-label="메뉴 열기">
-				<MenuIcon size={20} />
-			</Button>
-			<Dropdown.Popover className="min-w-56" placement="bottom end">
-				<Dropdown.Menu
-					aria-label="주 메뉴"
-					selectedKeys={activeItem ? new Set([activeItem.id]) : new Set()}
-					selectionMode="single"
-					onAction={(key) => {
-						const item = items.find((candidate) => candidate.id === key);
-						if (!item || item.to === location.pathname) return;
-						if (item.reloadDocument) {
-							globalThis.location.assign(item.to);
-							return;
-						}
-						void navigate(item.to);
-					}}
-				>
-					{items.map((item) => (
-						<Dropdown.Item id={item.id} key={item.id} textValue={item.label}>
-							<Dropdown.ItemIndicator />
+		<Surface
+			className="fixed inset-x-0 bottom-0 z-20 px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] md:hidden"
+			variant="secondary"
+			render={(props) => <nav {...props} aria-label="모바일 주 메뉴" />}
+		>
+			<div className={`grid ${navigationColumns} gap-1`}>
+				{primaryItems.map((item) => {
+					const active = isNavigationItemActive(item, location.pathname);
+					return (
+						<ButtonLink
+							to={item.to}
+							fullWidth
+							key={item.id}
+							reloadDocument={item.reloadDocument}
+							className={itemClassName}
+							variant={active ? "secondary" : "ghost"}
+							aria-current={active ? "page" : undefined}
+						>
 							<NavigationIcon name={item.icon} />
-							<Label>{item.label}</Label>
-						</Dropdown.Item>
-					))}
-				</Dropdown.Menu>
-			</Dropdown.Popover>
-		</Dropdown>
+							{item.shortLabel}
+						</ButtonLink>
+					);
+				})}
+				<ButtonLink
+					to={menuPath}
+					fullWidth
+					className={itemClassName}
+					variant={menuActive ? "secondary" : "ghost"}
+					aria-current={menuActive ? "page" : undefined}
+				>
+					<MenuIcon size={18} />
+					전체
+				</ButtonLink>
+			</div>
+		</Surface>
 	);
 }
 
-function IdentityCard({ user }: { user: CurrentUser }) {
+export function IdentityPanel({ user }: { user: CurrentUser }) {
 	return (
-		<Surface
-			className="flex items-center gap-2 rounded-xl p-2.5"
-			variant="tertiary"
-		>
-			<Avatar size="sm">
-				<Avatar.Fallback>
-					{user.email.slice(0, 1).toUpperCase()}
-				</Avatar.Fallback>
-			</Avatar>
-			<div className="min-w-0 flex-1">
-				<Typography.Paragraph truncate weight="medium" size="sm">
-					{user.email}
-				</Typography.Paragraph>
-				<Chip size="sm" variant="soft">
-					{roleLabels[user.role]}
-				</Chip>
+		<Surface className="grid gap-2 rounded-xl p-2.5" variant="tertiary">
+			<div className="flex items-center gap-2">
+				<Avatar size="sm">
+					<Avatar.Fallback>
+						{user.email.slice(0, 1).toUpperCase()}
+					</Avatar.Fallback>
+				</Avatar>
+				<div className="min-w-0 flex-1">
+					<Typography.Paragraph truncate weight="medium" size="sm">
+						{user.email}
+					</Typography.Paragraph>
+					<Chip size="sm" variant="soft">
+						{roleLabels[user.role]}
+					</Chip>
+				</div>
 			</div>
+			<ButtonLink
+				to="/cdn-cgi/access/logout"
+				fullWidth
+				reloadDocument
+				className="h-9 justify-start"
+				size="sm"
+				variant="ghost"
+			>
+				<LogOutIcon size={16} />
+				로그아웃
+			</ButtonLink>
 		</Surface>
 	);
 }
@@ -219,11 +162,18 @@ function IdentityCard({ user }: { user: CurrentUser }) {
 export function AppShell({ user }: { user: CurrentUser }) {
 	const location = useLocation();
 	const appName = import.meta.env.VITE_APP_NAME ?? "Management System";
-	const currentPageLabel = getNavigationLabel(location.pathname) ?? appName;
+	const menuPath = getRolePath(user.role, "/menu");
+	const currentPageLabel =
+		location.pathname === menuPath
+			? "전체 메뉴"
+			: (getNavigationLabel(location.pathname) ?? appName);
 
 	useEffect(() => {
-		document.title = appName;
-	}, []);
+		document.title =
+			currentPageLabel === appName
+				? appName
+				: `${currentPageLabel} · ${appName}`;
+	}, [currentPageLabel]);
 
 	return (
 		<div className="flex min-h-dvh">
@@ -249,24 +199,24 @@ export function AppShell({ user }: { user: CurrentUser }) {
 				</div>
 				<DesktopNavigation user={user} />
 				<div className="mt-auto">
-					<IdentityCard user={user} />
+					<IdentityPanel user={user} />
 				</div>
 			</Surface>
 
 			<div className="min-w-0 flex-1">
 				<Surface
-					className="sticky top-0 z-10 flex h-12 items-center justify-between gap-3 px-3 md:hidden"
+					className="sticky top-0 z-10 flex h-12 items-center px-3 md:hidden"
 					role="banner"
 					variant="secondary"
 				>
 					<Typography.Paragraph truncate size="sm" weight="semibold">
 						{currentPageLabel}
 					</Typography.Paragraph>
-					<MobileNavigation user={user} />
 				</Surface>
-				<main className="mx-auto w-full max-w-6xl p-3 sm:p-6 lg:p-8">
+				<main className="mx-auto w-full max-w-7xl p-3 pb-24 sm:p-6 md:pb-6 lg:p-8">
 					<Outlet />
 				</main>
+				<MobileNavigation user={user} />
 			</div>
 		</div>
 	);

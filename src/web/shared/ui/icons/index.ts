@@ -24,6 +24,7 @@ export {
 	DatabaseIcon,
 	InboxIcon,
 	LayoutDashboardIcon,
+	LogOutIcon,
 	MenuIcon,
 	ShieldCheckIcon,
 	TrashIcon,

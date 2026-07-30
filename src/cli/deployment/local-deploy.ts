@@ -82,6 +82,11 @@ interface ResolvedDeployTarget {
 	hostname: string;
 }
 
+interface GoogleOAuthCredentials {
+	clientId: string;
+	clientSecret: string;
+}
+
 function answer<T>(value: T | symbol): T {
 	if (prompts.isCancel(value)) {
 		throw usageError(
@@ -91,6 +96,44 @@ function answer<T>(value: T | symbol): T {
 		);
 	}
 	return value as T;
+}
+
+export function googleOAuthCredentialsFromEnvironment(
+	environment: NodeJS.ProcessEnv = process.env,
+): GoogleOAuthCredentials | undefined {
+	const clientId = environment.GOOGLE_OAUTH_CLIENT_ID?.trim();
+	const clientSecret = environment.GOOGLE_OAUTH_CLIENT_SECRET?.trim();
+	return clientId && clientSecret ? { clientId, clientSecret } : undefined;
+}
+
+async function resolveGoogleOAuthCredentials(
+	enabled: boolean,
+): Promise<GoogleOAuthCredentials | undefined> {
+	if (!enabled) return undefined;
+	const configured = googleOAuthCredentialsFromEnvironment();
+	if (configured) return configured;
+	if (cliRuntime().machine) {
+		throw configurationError(
+			"missing_google_oauth_credentials",
+			"Google 로그인용 OAuth 자격 증명이 없습니다.",
+			"GOOGLE_OAUTH_CLIENT_ID와 GOOGLE_OAUTH_CLIENT_SECRET 환경변수를 설정한 뒤 같은 deploy 명령을 다시 실행하세요.",
+		);
+	}
+	const clientId = answer(
+		await prompts.text({
+			message: "Google OAuth client ID",
+			validate: (value) =>
+				value?.trim() ? undefined : "client ID를 입력하세요.",
+		}),
+	).trim();
+	const clientSecret = answer(
+		await prompts.password({
+			message: "Google OAuth client secret",
+			validate: (value) =>
+				value?.trim() ? undefined : "client secret을 입력하세요.",
+		}),
+	).trim();
+	return { clientId, clientSecret };
 }
 
 async function commandAvailable(
@@ -755,6 +798,16 @@ export async function runLocalDeploy(
 				: "custom-domain",
 			zero_trust: target.zeroTrust.exists ? "ready" : "missing",
 			one_time_pin: target.zeroTrust.oneTimePin ? "ready" : "will-create",
+			google_login: target.config.access.google_login
+				? target.zeroTrust.google
+					? "ready"
+					: "will-create"
+				: "disabled",
+			google_oauth_credentials: target.config.access.google_login
+				? googleOAuthCredentialsFromEnvironment()
+					? "ready"
+					: "required_before_deploy"
+				: "not_required",
 		},
 		bootstrap_owner_email: target.config.access.bootstrap_owner_email,
 		files: [
@@ -762,6 +815,9 @@ export async function runLocalDeploy(
 		],
 		commit_message: message ?? null,
 		repository_secret: "CLOUDFLARE_API_TOKEN",
+		repository_oauth_secrets: target.config.access.google_login
+			? ["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET"]
+			: [],
 		credential_store:
 			target.tokenFromEnvironment || isCI ? "unchanged" : "save_after_approval",
 		workflow: "application-deploy.yml",
@@ -798,6 +854,9 @@ export async function runLocalDeploy(
 		prompts.note(JSON.stringify(plan, null, 2), "Production deploy plan");
 	}
 	if (options.dryRun) return;
+	const googleOAuthCredentials = await resolveGoogleOAuthCredentials(
+		target.config.access.google_login ?? false,
+	);
 	if (cliRuntime().machine && !options.yes) {
 		throw new CliError(
 			"approval_required",
@@ -888,7 +947,26 @@ export async function runLocalDeploy(
 	progress(
 		"Cloudflare token을 GitHub repository Actions secret으로 설정합니다.",
 	);
-	await setRepositorySecret(target.repository, target.token);
+	await setRepositorySecret(
+		target.repository,
+		"CLOUDFLARE_API_TOKEN",
+		target.token,
+	);
+	if (googleOAuthCredentials) {
+		progress(
+			"Google OAuth 자격 증명을 GitHub repository Actions secret으로 설정합니다.",
+		);
+		await setRepositorySecret(
+			target.repository,
+			"GOOGLE_OAUTH_CLIENT_ID",
+			googleOAuthCredentials.clientId,
+		);
+		await setRepositorySecret(
+			target.repository,
+			"GOOGLE_OAUTH_CLIENT_SECRET",
+			googleOAuthCredentials.clientSecret,
+		);
+	}
 	let headSha = await currentHead();
 	let remoteHead = (
 		await readGitValue(["ls-remote", "--heads", "origin", "refs/heads/main"])

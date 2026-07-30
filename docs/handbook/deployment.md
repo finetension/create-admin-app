@@ -21,7 +21,7 @@
 Git 추적 루트 `config.toml`:
 
 - `[project]`: 표시 이름과 slug
-- `[access]`: 제거할 수 없는 Bootstrap Owner 이메일
+- `[access]`: 제거할 수 없는 Bootstrap Owner 이메일과 선택형 `google_login`
 - `[github]`: owner, repository, visibility
 - `[cloudflare]`: account ID와 `workers.dev` 또는 custom domain route
 
@@ -30,6 +30,7 @@ GitHub Actions는 이 파일을 읽어 배포 대상을 결정한다. 같은 값
 Secrets:
 
 - `CLOUDFLARE_API_TOKEN`
+- `GOOGLE_OAUTH_CLIENT_ID`와 `GOOGLE_OAUTH_CLIENT_SECRET`: `[access].google_login = true`일 때만 필요
 
 첫 배포 경험은 계정 선택과 Zone 조회를 단순화하기 위해 계정 소유 Cloudflare Account API Token 하나를 계정 단위 OS credential store와 GitHub repository Actions secret에 등록한다. 저장소 파일이나 로그에는 token을 기록하지 않는다. `pull_request`와 fork job은 이 secret을 참조하지 않고 `main` Application Deploy·Application Destroy job만 process environment로 전달한다. Deploy는 같은 값을 Worker의 `ACCESS_MANAGEMENT_TOKEN` secret으로 주입한다. GitHub secret은 Worker에서 자동으로 보이지 않으므로 이 주입은 배포 단계의 명시적인 책임이다.
 
@@ -47,23 +48,25 @@ Token은 다음 순서로 만든다.
 
 Access 로그인은 별도 OAuth secret이 필요 없는 [One-time PIN](https://developers.cloudflare.com/cloudflare-one/integrations/identity-providers/one-time-pin/)을 기본으로 한다. 로그인 허용 대상은 Owner·Admin·Member Access 그룹의 구성원이다. 신규 Zero Trust organization은 OTP를 자동으로 만들지 않으므로 Application Deploy workflow가 기존 identity provider를 보존하면서 OTP를 멱등하게 추가한다. 공통 기반은 R2를 사용하지 않는다.
 
+Google 로그인이 필요하면 `config.toml`에 `google_login = true`를 명시한다. Google Cloud에서 Web application OAuth client를 만들고 Zero Trust team domain을 authorized JavaScript origin으로, `https://<team-name>.cloudflareaccess.com/cdn-cgi/access/callback`을 authorized redirect URI로 등록한다. 로컬 deploy는 `GOOGLE_OAUTH_CLIENT_ID`와 `GOOGLE_OAUTH_CLIENT_SECRET` 환경변수 또는 인터랙티브 secret 입력을 받아 GitHub Actions secret으로 직접 설정하며 파일·명령 인자·OS credential store에는 저장하지 않는다. Application Deploy는 관리 대상 Google provider를 생성 또는 갱신하고 OTP와 Google을 application의 `allowed_idps`로 제한한다. 두 provider를 사용할 때는 로그인 선택 화면을 위해 자동 redirect를 끈다.
+
 Zero Trust organization 자체가 없는 account는 Dashboard에서 [team name과 plan을 한 번 설정](https://developers.cloudflare.com/learning-paths/clientless-access/initial-setup/create-zero-trust-org/)해야 한다. 인터랙티브 deploy는 onboarding URL을 열고 완료 뒤 read-only로 재검사한다. machine mode는 `cloudflare_zero_trust_setup_required`, URL과 재실행 hint를 출력하고 외부 변경 전에 종료한다.
 
 Cloudflare Access가 운영 인증·인가 게이트웨이다. 배포는 Bootstrap Owner를 Owner 그룹에 보장하고 동적 구성원은 보존한다. Base application은 Owner·Admin·Member, Admin application은 Owner·Admin, Owner application은 Owner 그룹을 허용한다. Public application은 역할이 아니라 데이터가 없는 빌드 산출물 `/assets/*`와 명시적 공개 경로 `/public/*`, `/api/public/*`만 bypass하는 접근 범위다. 역할별 HTML 경로와 API는 계속 해당 Access application이 보호한다. Access API는 빈 `include` 그룹을 허용하지 않으므로 멤버가 없는 역할에는 로그인할 수 없는 예약된 `example.com` placeholder 이메일 하나를 둔다. 배포와 Owner API는 이 규칙을 자동으로 정규화하고 멤버 목록·역할 판정·상태의 인원수에서는 제외한다. Worker 런타임에는 assertion 검증에 필요한 Access team domain과 Base·Admin·Owner audience를 전달하고 이메일이나 역할 목록은 전달하지 않는다. Worker는 검증된 이메일을 사용자 식별과 audit에 사용한다.
 
-Owner 전용 API는 `ACCESS_MANAGEMENT_TOKEN`으로 서버에 고정된 세 그룹만 조회·수정하고 대상 사용자의 Access 세션을 native revoke한다. Cloudflare의 per-user revoke는 같은 account의 Access application 전체에 적용되므로 UI가 이 범위를 명시한다. account ID와 group ID를 클라이언트 입력으로 받지 않는다. 이 런타임 mutation은 D1 감사 로그를 남기는 좁은 제품 행위이며 D1 migration, Worker·Access application 배포와 철거의 Actions-only 원칙을 완화하지 않는다.
+Owner 전용 API는 `ACCESS_MANAGEMENT_TOKEN`으로 서버에 고정된 세 그룹만 조회·수정하고 대상 사용자의 Access 세션을 native revoke한다. Cloudflare의 per-user revoke는 같은 account의 Access application 전체에 적용되므로 UI가 이 범위를 명시한다. account ID와 group ID를 클라이언트 입력으로 받지 않는다. 역할은 계속 Cloudflare가 기준이고 D1은 표시 이름 프로필과 감사 기록만 저장한다. 구성원을 제거해도 과거 행위를 설명할 프로필 메타데이터와 감사 기록은 보존하며 현재 구성원 목록에서는 제외한다. 이 런타임 mutation은 D1 감사 로그를 남기는 좁은 제품 행위이며 D1 migration, Worker·Access application 배포와 철거의 Actions-only 원칙을 완화하지 않는다.
 
 public 저장소의 source, `config.toml`에 기록된 Bootstrap Owner 이메일과 Actions 실행 기록은 공개 범위다. 동적으로 추가한 역할 멤버 이메일은 Git이나 배포 plan에 출력하지 않는다. Application Deploy와 Application Destroy는 D1 데이터, Worker 요청·응답 또는 live log를 Actions log와 artifact에 기록하지 않는다. GitHub가 secret 값을 마스킹하더라도 명령 인자, 파일 또는 별도 변형값으로 노출되지 않도록 사전 검사한다.
 
 ## 워크플로
 
 - `application-ci.yml`: 모든 PR을 검증하고 임시 local D1에 전체 migration을 적용
-- `application-deploy.yml`: `main` push 또는 수동 dispatch로 실행. 단일 job이 production credential 없이 `pnpm check`를 통과한 뒤에만 credential을 mutation step에 주입해 설정과 자격 증명 진단, D1 migration, Worker·OTP·Access 배포와 검증, lifecycle 자동 commit을 수행
+- `application-deploy.yml`: `main` push 또는 수동 dispatch로 실행. 단일 job이 production credential 없이 `pnpm check`를 통과한 뒤에만 credential을 mutation step에 주입해 설정과 자격 증명 진단, D1 migration, Worker·OTP·선택형 Google·Access 배포와 검증, lifecycle 자동 commit을 수행
 - `application-destroy.yml`: guarded 인프라 destroy. `main`, 허용 event, 작업별 capability와 정확한 서비스명 확인을 강제
 
 GitHub Actions가 제품이 지원하고 감사하는 Cloudflare 운영 mutation 실행 환경이다. 로컬 `pnpm cli deploy`는 전체 계획을 확인한 뒤 `config.toml` 갱신, commit 전 secret 검사, Git commit·push, GitHub repository secret 설정, workflow 결과 대기와 lifecycle fast-forward를 orchestration한다. type check, lint, test와 build는 guarded workflow에 맡기며 Cloudflare API를 변경하는 단계는 로컬에서 실행하지 않는다. Application Deploy의 단일 job은 의존성을 한 번 설치하고 production credential 없이 `pnpm check`를 먼저 실행한다. 이후 mutation step에만 credential을 주입하고 검증 과정에서 만든 CLI를 재사용해 중복 workflow, runner, 설치와 build를 피하면서도 실패한 변경이 운영에 반영되지 않게 한다.
 GitHub API의 안전한 read 요청이 timeout 또는 5xx로 실패하면 CLI가 짧게 최대 3회 재시도한다. 반복 실패 시에는 완료된 commit·push·workflow 상태를 유지하고 같은 제품 CLI 명령의 재실행을 안내한다. repository 조회 실패를 곧바로 repository 부재로 간주하지 않는다.
-workflow의 Cloudflare 단계는 숨겨진 `pnpm cli internal deploy` 또는 `pnpm cli internal destroy`를 호출한다. 내부 명령은 GitHub Actions 환경, `main` ref, 허용 event와 작업별 capability가 모두 일치할 때만 실행하고 process의 `CLOUDFLARE_API_TOKEN`만 사용한다. OS credential store의 같은 write token 때문에 Actions는 token 자체의 보안 경계가 아니며, CLI가 지원하는 mutation·감사 경계다.
+workflow의 Cloudflare 단계는 숨겨진 `pnpm cli internal deploy` 또는 `pnpm cli internal destroy`를 호출한다. 내부 명령은 GitHub Actions 환경, `main` ref, 허용 event와 작업별 capability가 모두 일치할 때만 실행하고 process의 `CLOUDFLARE_API_TOKEN`과, 설정한 경우에만 Google OAuth 자격 증명을 사용한다. OS credential store의 같은 write token 때문에 Actions는 token 자체의 보안 경계가 아니며, CLI가 지원하는 mutation·감사 경계다.
 
 새 GitHub repository는 repository token secret을 먼저 설정한 뒤 첫 `main` push를 실행해 자격 증명 없는 첫 deploy가 시작되는 race를 피한다. 임의 shell 문자열을 받는 범용 workflow를 만들지 않고 각 operation과 입력을 명시한다.
 

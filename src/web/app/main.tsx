@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router";
 import "../shared/ui/styles/index.css";
 import App from "./App";
+import { AppErrorBoundary } from "./AppErrorBoundary";
 
 const queryClient = new QueryClient({
 	defaultOptions: {
@@ -17,9 +18,11 @@ if (!root) throw new Error("Root element was not found");
 createRoot(root).render(
 	<StrictMode>
 		<QueryClientProvider client={queryClient}>
-			<BrowserRouter>
-				<App />
-			</BrowserRouter>
+			<AppErrorBoundary>
+				<BrowserRouter>
+					<App />
+				</BrowserRouter>
+			</AppErrorBoundary>
 		</QueryClientProvider>
 	</StrictMode>,
 );

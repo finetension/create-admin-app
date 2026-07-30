@@ -82,6 +82,17 @@ describe("HeroUI design system boundary", () => {
 		expect(css).toContain('--font-sans:\n\t\t"Wanted Sans Variable"');
 	});
 
+	it("keeps native document overscroll for mobile pull-to-refresh", () => {
+		const css = readFileSync(
+			new URL("./styles/index.css", import.meta.url),
+			"utf8",
+		);
+
+		expect(css).not.toMatch(
+			/\b(?:html|body)\s*\{[^}]*overscroll-behavior(?:-y)?:\s*(?:none|contain)/s,
+		);
+	});
+
 	it("keeps HeroUI as the only web stylesheet", () => {
 		const webRoot = fileURLToPath(new URL("../../", import.meta.url));
 		const cssFiles = collectCssFiles(webRoot)

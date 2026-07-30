@@ -30,6 +30,8 @@ describe("production workflow policy", () => {
 			"node ./dist/cli/index.mjs internal deploy --json",
 		);
 		expect(source).toContain("secrets.CLOUDFLARE_API_TOKEN");
+		expect(source).toContain("secrets.GOOGLE_OAUTH_CLIENT_ID");
+		expect(source).toContain("secrets.GOOGLE_OAUTH_CLIENT_SECRET");
 		expect(source).toContain("finetension/create-admin-app");
 
 		const check = source.indexOf("run: pnpm check");
